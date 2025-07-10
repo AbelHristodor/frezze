@@ -115,7 +115,7 @@ fn get_router(state: AppState) -> Router {
         .allow_headers(tower_http::cors::Any);
 
     Router::new()
-        .route("/", get(handlers::get_pull_requests))
+        .route("/", get(handlers::get_rulesets))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().include_headers(true))

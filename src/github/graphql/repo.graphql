@@ -1,0 +1,63 @@
+query GetRepositoryRulesets($owner: String!, $name: String!, $followRenames: Boolean!) {
+  repository(owner: $owner, name: $name, followRenames: $followRenames) {
+    id
+    createdAt
+    databaseId
+    rulesets(first: 100) {
+      nodes {
+        id
+        name
+        enforcement
+        target
+        conditions {
+          refName {
+            include
+            exclude
+          }
+        }
+        rules(first: 100) {
+          nodes {
+            id
+            type
+            parameters {
+              ... on BranchNamePatternParameters {
+                name
+                negate
+                operator
+                pattern
+              }
+              ... on CommitMessagePatternParameters {
+                name
+                negate
+                operator
+                pattern
+              }
+              ... on RequiredStatusChecksParameters {
+                strictRequiredStatusChecksPolicy
+                requiredStatusChecks {
+                  context
+                  integrationId
+                }
+              }
+              ... on PullRequestParameters {
+                dismissStaleReviewsOnPush
+                requireCodeOwnerReview
+                requiredApprovingReviewCount
+                requiredReviewThreadResolution
+                requireLastPushApproval
+              }
+            }
+          }
+          pageInfo {
+            endCursor
+            hasNextPage
+          }
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}

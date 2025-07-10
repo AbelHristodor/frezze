@@ -20,7 +20,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_target(false)
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .or_else(|_| EnvFilter::try_new("freeze_bot=info,tower_http=debug"))
+                .or_else(|_| EnvFilter::try_new("frezze=info,tower_http=debug"))
                 .unwrap(),
         )
         .compact()

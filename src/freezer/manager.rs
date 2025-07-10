@@ -57,7 +57,7 @@ impl FreezerManager {
         repo: &str,
     ) -> Result<()> {
         let settings = FreezeProtectionSettings::default();
-        let existing_rules = self.github.client().await?;
+        let existing_rules = self.github.client();
 
         Ok(())
     }

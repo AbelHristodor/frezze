@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
-use chrono::{NaiveDateTime, TimeZone, Utc};
+use anyhow::{Context, Result, anyhow};
+use chrono::Utc;
 use octocrab::{
     Octocrab,
     models::{InstallationRepositories, InstallationToken},
@@ -7,19 +7,17 @@ use octocrab::{
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{debug, info};
 use url::Url;
 
-mod branch_protection;
+mod repo;
+mod types;
 
 fn parse_to_utc(date_str: &str) -> chrono::DateTime<chrono::Utc> {
-    // Parse into NaiveDateTime (no timezone)
-    let naive =
-        NaiveDateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S").expect("Failed to parse date");
-
-    // Convert NaiveDateTime to DateTime<Utc>
-
-    Utc.from_utc_datetime(&naive)
+    date_str
+        .parse::<chrono::DateTime<chrono::Utc>>()
+        .context("Failed to parse date string to DateTime<Utc>")
+        .expect("Invalid date format")
 }
 
 struct CachedInstallationClient {
@@ -39,6 +37,7 @@ impl CachedInstallationClient {
             .clone()
             .unwrap_or(default_expires_at.to_string());
 
+        debug!("Expires_at: {:?}", expires_at);
         Utc::now() + buffer >= parse_to_utc(&expires_at)
     }
 }
@@ -209,19 +208,23 @@ impl Github {
         Ok(installation_repos.repositories)
     }
     /// Execute a closure with an installation client
-    pub async fn with_installation<F, R>(&self, installation_id: u64, f: F) -> Result<R>
+    pub async fn with_installation<F, R>(&self, installation_id: u64, f: F) -> anyhow::Result<R>
     where
-        F: FnOnce(Octocrab) -> R,
+        F: FnOnce(Octocrab) -> anyhow::Result<R>,
     {
         let client = self.installation_client(installation_id).await?;
-        Ok(f(client))
+        f(client)
     }
 
     /// Execute an async closure with an installation client
-    pub async fn with_installation_async<F, Fut, R>(&self, installation_id: u64, f: F) -> Result<R>
+    pub async fn with_installation_async<F, Fut, R>(
+        &self,
+        installation_id: u64,
+        f: F,
+    ) -> anyhow::Result<R>
     where
         F: FnOnce(Octocrab) -> Fut,
-        Fut: std::future::Future<Output = Result<R>>,
+        Fut: std::future::Future<Output = anyhow::Result<R>>,
     {
         let client = self.installation_client(installation_id).await?;
         f(client).await
@@ -246,40 +249,41 @@ impl Github {
     }
 }
 
-impl Github {
-    /// Get a specific repository through an installation
-    pub async fn get_repository(
-        &self,
-        installation_id: u64,
-        owner: &str,
-        repo: &str,
-    ) -> Result<octocrab::models::Repository> {
-        self.with_installation_async(installation_id, |client| async move {
-            client
-                .repos(owner, repo)
-                .get()
-                .await
-                .map_err(|e| anyhow!("Failed to get repository {}/{}: {}", owner, repo, e))
-        })
-        .await
+#[cfg(test)]
+mod tests {
+    use chrono::{Datelike, Timelike};
+
+    use super::*;
+
+    #[test]
+    fn test_parse_to_utc_valid() {
+        let datetime_str = "2025-07-10T09:14:47Z";
+        let result = parse_to_utc(datetime_str);
+        assert_eq!(result.year(), 2025);
+        assert_eq!(result.month(), 7);
+        assert_eq!(result.day(), 10);
+        assert_eq!(result.hour(), 9);
+        assert_eq!(result.minute(), 14);
+        assert_eq!(result.second(), 47);
     }
 
-    /// Create a comment on an issue or PR
-    pub async fn create_comment(
-        &self,
-        installation_id: u64,
-        owner: &str,
-        repo: &str,
-        issue_number: u64,
-        body: &str,
-    ) -> Result<octocrab::models::issues::Comment> {
-        self.with_installation_async(installation_id, |client| async move {
-            client
-                .issues(owner, repo)
-                .create_comment(issue_number, body)
-                .await
-                .map_err(|e| anyhow!("Failed to create comment: {}", e))
-        })
-        .await
+    #[test]
+    fn test_parse_to_utc_with_microseconds() {
+        let datetime_str = "2025-07-10T09:14:47.123456Z";
+        let _ = parse_to_utc(datetime_str);
+    }
+
+    #[test]
+    fn test_parse_to_utc_invalid() {
+        let datetime_str = "invalid-datetime";
+        let _ = parse_to_utc(datetime_str);
+    }
+
+    #[test]
+    fn test_parse_to_utc_with_timezone_offset() {
+        let datetime_str = "2025-07-10T09:14:47+02:00";
+        let result = parse_to_utc(datetime_str);
+
+        assert_eq!(result.hour(), 7); // 9 - 2 = 7 UTC
     }
 }
