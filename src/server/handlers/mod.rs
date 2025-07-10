@@ -1,5 +1,8 @@
 use crate::server::AppState;
-use axum::{extract::State, response::IntoResponse};
+use axum::{
+    extract::State,
+    response::{IntoResponse, Response},
+};
 use tracing::info;
 
 pub async fn get_rulesets(State(state): State<AppState>) -> impl IntoResponse {
@@ -14,4 +17,9 @@ pub async fn get_rulesets(State(state): State<AppState>) -> impl IntoResponse {
         repos.len(),
         installations[0].id.0
     );
+}
+
+pub async fn webhook() -> Response {
+    info!("Received webhook event");
+    axum::http::StatusCode::OK.into_response()
 }

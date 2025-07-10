@@ -1,8 +1,9 @@
 use crate::server::config::ServerConfig;
+use crate::server::middlewares::hmac::verify_hmac_middleware;
 use crate::{database::Database, github};
 use anyhow::{Result, anyhow};
-use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
+use axum::{Router, middleware};
 use base64::Engine;
 use base64::engine::general_purpose;
 use std::{path::Path, sync::Arc};
@@ -11,6 +12,7 @@ use tracing::{Level, info};
 
 pub mod config;
 mod handlers;
+mod middlewares;
 
 pub struct Server {
     pub address: std::net::Ipv4Addr,
@@ -40,24 +42,25 @@ impl Server {
             .await?;
 
         // Initialize the server with the provided configuration
-        let server = Server {
+        Ok(Server {
             address: config.address,
             port: config.port,
             gh_app_id: config.gh_app_id,
             gh_private_key_path: config.gh_private_key_path.clone(),
             gh_private_key_base64: config.gh_private_key_base64.clone(),
             db: Arc::new(db),
-        };
-
-        Ok(server)
+        })
     }
 
     pub async fn start(&self) -> Result<()> {
+        // Initialize the github client
         let github = github::Github::new(self.gh_app_id, &self.read_gh_private_key()?).await;
 
+        // Create the TCP listener
         let listener = tokio::net::TcpListener::bind((self.address, self.port)).await?;
         info!("Server started on {}", listener.local_addr().unwrap());
 
+        // Listen for incoming connections and serve the Axum router
         axum::serve(
             listener,
             get_router(AppState {
@@ -70,6 +73,7 @@ impl Server {
         Ok(())
     }
 
+    /// Reads the GitHub private key from either a file or a base64 string.
     pub fn read_gh_private_key(&self) -> Result<Vec<u8>> {
         if let Some(path) = &self.gh_private_key_path {
             info!("Using key from path");
@@ -94,6 +98,11 @@ impl Server {
 
 /// Creates the Axum router with the necessary routes and middleware.
 fn get_router(state: AppState) -> Router {
+    let hmac_state = Arc::new(middlewares::hmac::HmacConfig {
+        secret: "mysecret".into(),
+        header_name: "x-hub-signature-256".to_string(), // Default GitHub header
+    });
+
     let cors = tower_http::cors::CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
         .allow_methods(tower_http::cors::Any)
@@ -101,6 +110,13 @@ fn get_router(state: AppState) -> Router {
 
     Router::new()
         .route("/", get(handlers::get_rulesets))
+        .route(
+            "/webhook",
+            post(handlers::webhook).layer(middleware::from_fn_with_state(
+                hmac_state,
+                verify_hmac_middleware,
+            )),
+        )
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().include_headers(true))
