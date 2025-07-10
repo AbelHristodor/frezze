@@ -1,6 +1,5 @@
 use crate::github::{Github, types};
 use anyhow::{Result, anyhow};
-use tracing::{debug, info};
 
 const BRANCH_PROTECTION_ENDPOINT: &str = "/repos/{owner}/{repo}/branches/{branch}/protection";
 

@@ -1,6 +1,6 @@
 use crate::server::AppState;
-use axum::{Json, extract::State, response::IntoResponse};
-use tracing::{debug, info};
+use axum::{extract::State, response::IntoResponse};
+use tracing::info;
 
 pub async fn get_rulesets(State(state): State<AppState>) -> impl IntoResponse {
     let installations = state.gh.get_installations().await.unwrap();
@@ -9,7 +9,6 @@ pub async fn get_rulesets(State(state): State<AppState>) -> impl IntoResponse {
         .get_installation_repositories(installations[0].id.0)
         .await
         .unwrap();
-    let repo = &repos[0];
     info!(
         "Found {} repositories for installation {}",
         repos.len(),

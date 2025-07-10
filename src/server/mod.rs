@@ -1,24 +1,21 @@
-use std::{path::Path, sync::Arc};
-
 use crate::server::config::ServerConfig;
 use crate::{database::Database, github};
+use anyhow::{Result, anyhow};
 use axum::Router;
 use axum::routing::get;
 use base64::Engine;
 use base64::engine::general_purpose;
-use sqlx::migrate::Migrator;
+use std::{path::Path, sync::Arc};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{Level, info};
 
 pub mod config;
-pub mod handlers;
+mod handlers;
 
 pub struct Server {
     pub address: std::net::Ipv4Addr,
     pub port: u16,
-    pub database_url: String,
     pub gh_app_id: u64,
-    pub migrations_path: String,
     pub gh_private_key_path: Option<String>,
     pub gh_private_key_base64: Option<String>,
 
@@ -32,20 +29,21 @@ pub struct AppState {
 }
 
 impl Server {
-    pub async fn new(config: &ServerConfig) -> Result<Self, anyhow::Error> {
+    pub async fn new(config: &ServerConfig) -> Result<Self> {
         // Validate the configuration
         config.validate()?;
 
-        let mut db = Database::new(config.database_url.clone(), 10);
-        db.connect().await?;
+        let db = Database::new(&config.database_url, &config.migrations_path, 10)
+            .connect()
+            .await?
+            .migrate()
+            .await?;
 
         // Initialize the server with the provided configuration
         let server = Server {
             address: config.address,
             port: config.port,
-            database_url: config.database_url.clone(),
             gh_app_id: config.gh_app_id,
-            migrations_path: config.migrations_path.clone(),
             gh_private_key_path: config.gh_private_key_path.clone(),
             gh_private_key_base64: config.gh_private_key_base64.clone(),
             db: Arc::new(db),
@@ -54,42 +52,8 @@ impl Server {
         Ok(server)
     }
 
-    async fn init(&self) -> Result<(), anyhow::Error> {
-        // Run database migrations
-        Migrator::new(Path::new(&self.migrations_path))
-            .await?
-            .run(self.db.get_connection()?)
-            .await?;
-
-        info!("Database migrations applied successfully");
-        Ok(())
-    }
-
-    pub async fn start(&self) -> Result<(), anyhow::Error> {
-        self.init().await?;
-
-        let gh_private_key: &[u8] = if let Some(path) = &self.gh_private_key_path {
-            info!("Using key from path");
-            let key_path = Path::new(path);
-            if !key_path.exists() {
-                return Err(anyhow::anyhow!(
-                    "GitHub private key file does not exist: {}",
-                    path
-                ));
-            }
-            &std::fs::read(key_path).map_err(|e| {
-                anyhow::anyhow!("Failed to read GitHub private key from file: {}", e)
-            })?
-        } else if let Some(base64_key) = &self.gh_private_key_base64 {
-            info!("Using key from base64 string");
-            &general_purpose::STANDARD.decode(base64_key).map_err(|e| {
-                anyhow::anyhow!("Failed to decode GitHub private key from base64: {}", e)
-            })?
-        } else {
-            return Err(anyhow::anyhow!("GitHub private key not provided"));
-        };
-
-        let github = github::Github::new(self.gh_app_id, gh_private_key).await;
+    pub async fn start(&self) -> Result<()> {
+        let github = github::Github::new(self.gh_app_id, &self.read_gh_private_key()?).await;
 
         let listener = tokio::net::TcpListener::bind((self.address, self.port)).await?;
         info!("Server started on {}", listener.local_addr().unwrap());
@@ -104,6 +68,27 @@ impl Server {
         .await?;
 
         Ok(())
+    }
+
+    pub fn read_gh_private_key(&self) -> Result<Vec<u8>> {
+        if let Some(path) = &self.gh_private_key_path {
+            info!("Using key from path");
+            let key_path = Path::new(path);
+            if !key_path.exists() {
+                return Err(anyhow!("GitHub private key file does not exist: {}", path));
+            }
+            // Return Vec<u8> directly
+            std::fs::read(key_path)
+                .map_err(|e| anyhow!("Failed to read GitHub private key from file: {}", e))
+        } else if let Some(base64_key) = &self.gh_private_key_base64 {
+            info!("Using key from base64 string");
+            // Return Vec<u8> directly
+            general_purpose::STANDARD
+                .decode(base64_key)
+                .map_err(|e| anyhow!("Failed to decode GitHub private key from base64: {}", e))
+        } else {
+            Err(anyhow!("GitHub private key not provided"))
+        }
     }
 }
 
