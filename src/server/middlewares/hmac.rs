@@ -13,26 +13,6 @@ use tracing::debug;
 
 type HmacSha256 = hmac::Hmac<sha2::Sha256>;
 
-pub fn verify_hmac_sha256(signature: &str, payload: &[u8], secret: &str) -> anyhow::Result<()> {
-    let signature_hex = signature
-        .strip_prefix("sha256=")
-        .context("Signature must start with 'sha256='")?;
-
-    let expected_signature =
-        hex::decode(signature_hex).context("Failed to decode hex signature")?;
-
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .context("Failed to create HMAC instance")
-        .map_err(|_| anyhow::anyhow!("Invalid secret key for HMAC"))?;
-
-    mac.update(payload);
-
-    match mac.verify_slice(&expected_signature) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(anyhow::anyhow!("HMAC verification failed")),
-    }
-}
-
 #[derive(Clone)]
 pub struct HmacConfig {
     pub secret: String,
@@ -76,5 +56,25 @@ pub async fn verify_hmac_middleware(
             Ok(next.run(req).await)
         }
         Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+fn verify_hmac_sha256(signature: &str, payload: &[u8], secret: &str) -> anyhow::Result<()> {
+    let signature_hex = signature
+        .strip_prefix("sha256=")
+        .context("Signature must start with 'sha256='")?;
+
+    let expected_signature =
+        hex::decode(signature_hex).context("Failed to decode hex signature")?;
+
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .context("Failed to create HMAC instance")
+        .map_err(|_| anyhow::anyhow!("Invalid secret key for HMAC"))?;
+
+    mac.update(payload);
+
+    match mac.verify_slice(&expected_signature) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(anyhow::anyhow!("HMAC verification failed")),
     }
 }
