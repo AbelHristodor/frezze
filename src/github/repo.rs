@@ -1,8 +1,7 @@
 use crate::github::{Github, types};
 use anyhow::{Result, anyhow};
 
-const BRANCH_PROTECTION_ENDPOINT: &str = "/repos/{owner}/{repo}/branches/{branch}/protection";
-
+const GITHUB_CHECK_SUITE_NAME: &str = "freeze";
 /*
 * The flow is:
 * - Get the repository id (node_id), either with Graphql or Rest API
@@ -98,5 +97,36 @@ impl Github {
         }
 
         Err(anyhow::anyhow!("Repository not found or no ID returned"))
+    }
+
+    pub async fn create_check_run(
+        &self,
+        owner: &str,
+        repo: &str,
+        sha: &str,
+        status: octocrab::params::checks::CheckRunStatus,
+        conclusion: octocrab::params::checks::CheckRunConclusion,
+        installation_id: u64,
+    ) -> anyhow::Result<()> {
+        self.with_installation_async(installation_id, |client| async move {
+            client
+                .checks(owner, repo)
+                .create_check_run(GITHUB_CHECK_SUITE_NAME, sha.to_string())
+                .conclusion(conclusion)
+                .status(status)
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to create check run: {:?}", e);
+                    anyhow!("Failed to create check run: {}", e)
+                })
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("Error creating check run: {}", e);
+            anyhow!("Error creating check run: {}", e)
+        })?;
+
+        Ok(())
     }
 }
