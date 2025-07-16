@@ -3,19 +3,22 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use axum::{
     body::{Body, Bytes},
-    extract::Request,
+    extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::Response,
 };
 use octocrab::models::webhook_events::WebhookEvent;
 
+use crate::freezer::manager::FreezeManager;
+use crate::server::AppState;
+
 const GH_EVENT_HEADER: &str = "X-GitHub-Event";
 
 // The event context that will be stored in request extensions
-#[derive(Clone)]
 pub struct GitHubEventContext {
     pub event: WebhookEvent,
+    pub freeze_manager: FreezeManager,
 }
 pub trait GitHubEventExt {
     fn github_event(&self) -> Option<Arc<GitHubEventContext>>;
@@ -28,13 +31,23 @@ impl GitHubEventExt for Request {
 }
 
 /// This middleware adds the GitHub event to the request context.
-pub async fn github_event(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+pub async fn github_event(
+    mut req: Request,
+    State(state): State<AppState>,
+    next: Next,
+) -> Result<Response, StatusCode> {
     let event_header = extract_event_from_request(&req)?;
     let body = extract_body_from_request(&mut req).await?;
     let event = parse_webhook_event(&event_header, &body)?;
 
+    // If freeze is not scheduled for this repo, skip and return OK
+    let fm = FreezeManager::new(state.gh, state.db);
+
     // Build the new request with the event in the context
-    let ctx = GitHubEventContext { event };
+    let ctx = GitHubEventContext {
+        event,
+        freeze_manager: fm,
+    };
 
     req.extensions_mut().insert(Arc::new(ctx));
     restore_request_body(&mut req, body);

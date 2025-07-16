@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use crate::{
     github::Github,
-    server::{AppState, middlewares::gh_event::GitHubEventExt},
+    server::{
+        AppState,
+        middlewares::gh_event::{GitHubEventContext, GitHubEventExt},
+    },
 };
 use axum::{
     extract::{Request, State},
@@ -35,7 +38,7 @@ pub async fn webhook(State(state): State<AppState>, req: Request) -> Result<Resp
         .ok_or(axum::http::StatusCode::BAD_REQUEST)?;
 
     match &ctx.event.kind {
-        WebhookEventType::PullRequest => handle_pull_request(&ctx.event, &state.gh).await,
+        WebhookEventType::PullRequest => handle_pull_request(&ctx, &state.gh).await,
         _ => handle_unknown_event(&ctx.event).await,
     }
 }
@@ -45,11 +48,28 @@ async fn handle_unknown_event(event: &WebhookEvent) -> Result<Response> {
     Ok(axum::http::StatusCode::OK.into_response())
 }
 
-async fn handle_pull_request(event: &WebhookEvent, gh: &Arc<Github>) -> Result<Response> {
+async fn handle_pull_request(ctx: &GitHubEventContext, gh: &Arc<Github>) -> Result<Response> {
+    let event = &ctx.event;
+    let mng = &ctx.freeze_manager;
+
     let installation_id = get_installation_id(event)?;
     let repository = event.repository.as_ref().ok_or("Repository not found")?;
     let repo = &repository.name;
     let owner = &repository.owner.as_ref().ok_or("Owner not found")?.login;
+
+    let mut conclusion = CheckRunConclusion::Failure; // default as if it's frozen
+
+    if !mng
+        .is_frozen(repo, installation_id as i64)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check if repository {} is frozen: {:?}", repo, e);
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    {
+        info!("Repository {} is not frozen", repo);
+        conclusion = CheckRunConclusion::Success; // if not frozen, set to success
+    }
 
     let WebhookEventPayload::PullRequest(pr_event) = &event.specific else {
         tracing::error!("Expected PullRequest event, got: {:?}", event.kind);
@@ -65,7 +85,7 @@ async fn handle_pull_request(event: &WebhookEvent, gh: &Arc<Github>) -> Result<R
         repo,
         head_sha,
         CheckRunStatus::Completed,
-        CheckRunConclusion::Success,
+        conclusion,
         installation_id,
     )
     .await

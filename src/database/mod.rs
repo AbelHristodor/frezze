@@ -1,6 +1,8 @@
 use sqlx::{migrate::Migrator, pool::PoolOptions};
 use std::path::Path;
 use tracing::info;
+
+pub mod freeze;
 pub mod models;
 
 /// Database connection details
@@ -42,5 +44,11 @@ impl Database {
             .await?;
         info!("Database migrations applied successfully");
         Ok(self)
+    }
+
+    pub fn get_connection(&self) -> Result<&sqlx::Pool<sqlx::Postgres>, anyhow::Error> {
+        self.conn
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Database connection not established"))
     }
 }

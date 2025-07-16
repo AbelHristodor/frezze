@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE freeze_records \n            SET status = $1, ended_at = $2, ended_by = $3\n            WHERE id = $4\n            RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "repository",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "installation_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "initiated_by",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "ended_by",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "status",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Timestamptz",
+        "Varchar",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "589557792867d9c2564428b73f208945de95530d83e72f944f9452fe5a2ac287"
+}

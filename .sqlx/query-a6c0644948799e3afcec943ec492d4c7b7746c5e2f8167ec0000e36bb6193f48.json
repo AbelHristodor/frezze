@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM permission_records WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "installation_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "repository",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_login",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "role",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "can_freeze",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "can_unfreeze",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "can_emergency_override",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a6c0644948799e3afcec943ec492d4c7b7746c5e2f8167ec0000e36bb6193f48"
+}

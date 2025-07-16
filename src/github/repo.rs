@@ -1,7 +1,13 @@
-use crate::github::{Github, types};
+use crate::github::{
+    Github,
+    types::{
+        self,
+        ruleset::input::{CreateRepositoryRulesetInput, StatusCheck},
+    },
+};
 use anyhow::{Result, anyhow};
 
-const GITHUB_CHECK_SUITE_NAME: &str = "freeze";
+const GITHUB_CHECK_SUITE_NAME: &str = "Freeze";
 /*
 * The flow is:
 * - Get the repository id (node_id), either with Graphql or Rest API
@@ -10,19 +16,34 @@ const GITHUB_CHECK_SUITE_NAME: &str = "freeze";
 * - update all PRs with a check run that fails/succedes based on the freeze period
 * - build the webhook that listens to events from PRs
 {
-        "input": {
-            "sourceId": "R_kgDOHZL5sw",
-            "name": "Main Branch Protection",
-            "target": "BRANCH",
-            "enforcement": "ACTIVE",
-            "conditions": {
-                "refName": {
-                    "include": ["refs/heads/main", "refs/heads/master"],
-                    "exclude": []
-                }
-            }
+  "input": {
+    "sourceId": "R_kgDOHZL5sw",
+    "conditions": {
+      "refName": {
+        "include": ["refs/heads/main"],
+        "exclude": []
+      }
+    },
+    "name": "Frezze Ruleset",
+    "enforcement": "ACTIVE",
+    "target": "BRANCH",
+    "rules": [
+      {
+        "type": "REQUIRED_STATUS_CHECKS",
+        "parameters": {
+          "requiredStatusChecks": {
+            "strictRequiredStatusChecksPolicy": true,
+            "requiredStatusChecks": [
+              {
+                "context": "frezze",
+                "integrationId": 1553098
+              }
+            ]
+          }
         }
-    }
+      }
+    ]
+  }
 *
  */
 
@@ -97,6 +118,47 @@ impl Github {
         }
 
         Err(anyhow::anyhow!("Repository not found or no ID returned"))
+    }
+
+    pub async fn create_ruleset(
+        &self,
+        repo_id: &str,
+        app_id: u64,
+        installation_id: u64,
+    ) -> anyhow::Result<types::repository::Ruleset> {
+        let response = self
+            .with_installation_async(installation_id, |client| async move {
+                let query = include_str!("graphql/create_ruleset.graphql");
+                let input = serde_json::to_string(&CreateRepositoryRulesetInput::new(
+                    repo_id.to_string(),
+                    "Frezze Ruleset".to_string(),
+                    vec!["refs/heads/main".to_string()],
+                    vec![StatusCheck {
+                        context: "frezze".to_string(),
+                        integration_id: app_id,
+                    }],
+                ))?;
+                let payload = serde_json::json!({
+                    "query": query,
+                    "variables": input
+                });
+                let response: types::ruleset::CreateRulesetResponse =
+                    client.graphql(&payload).await?;
+                Ok(response)
+            })
+            .await?;
+        if let Some(data) = response.data {
+            if let Some(ruleset) = data.create_repository_ruleset {
+                return Ok(ruleset);
+            }
+            if let Some(errors) = response.errors {
+                for error in errors {
+                    tracing::error!("GraphQL error: {:?}", error);
+                }
+                return Err(anyhow::anyhow!("GraphQL errors occurred"));
+            }
+        }
+        Err(anyhow::anyhow!("Failed to create ruleset"))
     }
 
     pub async fn create_check_run(
