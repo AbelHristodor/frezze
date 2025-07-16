@@ -10,18 +10,9 @@ use crate::server::{AppState, middlewares::gh_event::GitHubEventExt};
 mod issue;
 mod pr;
 
-pub async fn get_rulesets(State(state): State<AppState>) -> impl IntoResponse {
-    let installations = state.gh.get_installations().await.unwrap();
-    let repos = state
-        .gh
-        .get_installation_repositories(installations[0].id.0)
-        .await
-        .unwrap();
-    info!(
-        "Found {} repositories for installation {}",
-        repos.len(),
-        installations[0].id.0
-    );
+pub async fn health() -> Result<Response> {
+    info!("Health check endpoint hit");
+    Ok(axum::http::StatusCode::OK.into_response())
 }
 
 pub async fn webhook(State(state): State<AppState>, req: Request) -> Result<Response> {

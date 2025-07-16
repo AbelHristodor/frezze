@@ -546,6 +546,7 @@ dependencies = [
  "hmac",
  "jsonwebtoken",
  "octocrab",
+ "regex",
  "serde",
  "serde_json",
  "sha2",

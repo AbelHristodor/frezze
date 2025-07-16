@@ -111,7 +111,7 @@ fn get_router(state: AppState) -> Router {
         .allow_headers(tower_http::cors::Any);
 
     Router::new()
-        .route("/", get(handlers::get_rulesets))
+        .route("/", get(handlers::health))
         .route(
             "/webhook",
             post(handlers::webhook).layer(middleware::from_fn_with_state(

@@ -5,11 +5,6 @@ use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use tracing::info;
 
-#[derive(Debug, Default)]
-pub struct FreezeProtectionSettings {
-    pub required_status_checks: Vec<String>,
-}
-
 pub struct FreezeManager {
     pub db: Arc<Database>,
 }
