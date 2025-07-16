@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::database::{Database, models::FreezeRecord};
-use crate::github::Github;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use tracing::info;
@@ -12,13 +11,12 @@ pub struct FreezeProtectionSettings {
 }
 
 pub struct FreezeManager {
-    pub github: Arc<Github>,
     pub db: Arc<Database>,
 }
 
 impl FreezeManager {
-    pub fn new(github: Arc<Github>, db: Arc<Database>) -> Self {
-        FreezeManager { github, db }
+    pub fn new(db: Arc<Database>) -> Self {
+        FreezeManager { db }
     }
 
     pub async fn list_for_repo(

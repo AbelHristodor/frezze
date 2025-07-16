@@ -44,7 +44,6 @@ impl CachedInstallationClient {
 
 pub struct Github {
     client: octocrab::Octocrab,
-    app_id: u64,
     installation_clients: Arc<RwLock<HashMap<u64, CachedInstallationClient>>>,
 }
 
@@ -64,7 +63,6 @@ impl Github {
 
         Github {
             client,
-            app_id,
             installation_clients: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -81,22 +79,6 @@ impl Github {
         info!("Fetched {} installations", installations.len());
 
         Ok(installations)
-    }
-
-    pub async fn get_installation_token(&self, installation_id: u64) -> Result<Octocrab> {
-        // Check if we have a cached client that's still valid
-        {
-            let clients = self.installation_clients.read().await;
-            if let Some(cached) = clients.get(&installation_id) {
-                if !cached.is_expired() {
-                    return Ok(cached.client.clone());
-                }
-            }
-        }
-
-        // Create a new installation client
-        let client = self.create_installation_client(installation_id).await?;
-        Ok(client)
     }
 
     async fn create_installation_client(&self, installation_id: u64) -> Result<Octocrab> {

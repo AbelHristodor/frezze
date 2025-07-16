@@ -1,3 +1,4 @@
+use crate::freezer::manager::FreezeManager;
 use crate::server::config::ServerConfig;
 use crate::server::middlewares::hmac::verify_hmac_middleware;
 use crate::{database::Database, github};
@@ -26,7 +27,7 @@ pub struct Server {
 
 #[derive(Clone)]
 pub struct AppState {
-    db: Arc<Database>,
+    freeze_manager: Arc<FreezeManager>,
     gh: Arc<github::Github>,
 }
 
@@ -55,6 +56,7 @@ impl Server {
     pub async fn start(&self) -> Result<()> {
         // Initialize the github client
         let github = github::Github::new(self.gh_app_id, &self.read_gh_private_key()?).await;
+        let freeze_manager = FreezeManager::new(self.db.clone());
 
         // Create the TCP listener
         let listener = tokio::net::TcpListener::bind((self.address, self.port)).await?;
@@ -64,7 +66,7 @@ impl Server {
         axum::serve(
             listener,
             get_router(AppState {
-                db: self.db.clone(),
+                freeze_manager: Arc::new(freeze_manager),
                 gh: Arc::new(github),
             }),
         )
