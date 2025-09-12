@@ -5,6 +5,8 @@ use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use tracing::info;
 
+const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2);
+
 pub struct FreezeManager {
     pub db: Arc<Database>,
 }
@@ -12,6 +14,38 @@ pub struct FreezeManager {
 impl FreezeManager {
     pub fn new(db: Arc<Database>) -> Self {
         FreezeManager { db }
+    }
+
+    pub async fn freeze(
+        &self,
+        installation_id: i64,
+        repo: &str,
+        duration: Option<chrono::Duration>,
+        reason: Option<String>,
+        initiated_by: String,
+    ) -> Result<()> {
+        let start = Utc::now();
+        let duration = match duration {
+            Some(d) => d,
+            None => DEFAULT_FREEZE_DURATION,
+        };
+        let end = Some(start + duration);
+        let record = FreezeRecord::new(
+            repo.into(),
+            installation_id,
+            start,
+            end,
+            reason,
+            initiated_by,
+        );
+
+        let conn = self
+            .db
+            .get_connection()
+            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
+
+        FreezeRecord::create(conn, &record).await?;
+        Ok(())
     }
 
     pub async fn list_for_repo(

@@ -30,12 +30,12 @@ pub enum ServerCommands {
         /// The port to run the server on
         #[arg(short, long, default_value = "8080", env("SERVER_PORT"))]
         port: u16,
-        /// Path to the migrations directory
+        /// Path to the database migrations directory
         #[arg(short,
             long,
             value_name = "PATH",
             value_hint = clap::ValueHint::DirPath,
-            env("MIGRATIONS_PATH"),
+            env("DATABASE_MIGRATIONS_PATH"),
             default_value = "migrations")]
         migrations_path: String,
         /// Database URL

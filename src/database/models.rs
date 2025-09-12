@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -20,11 +22,31 @@ impl From<&str> for Role {
     }
 }
 
+impl Display for Role {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Role::Admin => write!(f, "admin"),
+            Role::Maintainer => write!(f, "maintainer"),
+            Role::Contributor => write!(f, "ended"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FreezeStatus {
     Active,
     Expired,
     Ended,
+}
+
+impl Display for FreezeStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FreezeStatus::Active => write!(f, "active"),
+            FreezeStatus::Expired => write!(f, "expired"),
+            FreezeStatus::Ended => write!(f, "ended"),
+        }
+    }
 }
 
 impl From<&str> for FreezeStatus {
@@ -43,6 +65,16 @@ pub enum CommandResult {
     Success,
     Error,
     Unauthorized,
+}
+
+impl Display for CommandResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommandResult::Success => write!(f, "success"),
+            CommandResult::Error => write!(f, "error"),
+            CommandResult::Unauthorized => write!(f, "unauthorized"),
+        }
+    }
 }
 
 impl From<&str> for CommandResult {

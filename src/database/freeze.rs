@@ -9,12 +9,6 @@ use crate::database::models::{
 
 impl FreezeRecord {
     pub async fn create(pool: &PgPool, record: &FreezeRecord) -> Result<FreezeRecord> {
-        let status_str = match record.status {
-            FreezeStatus::Active => "active",
-            FreezeStatus::Expired => "expired",
-            FreezeStatus::Ended => "ended",
-        };
-
         let row = sqlx::query!(
             r#"
             INSERT INTO freeze_records 
@@ -31,7 +25,7 @@ impl FreezeRecord {
             record.reason,
             record.initiated_by,
             record.ended_by,
-            status_str,
+            record.status.to_string(),
             record.created_at
         )
         .fetch_one(pool)
@@ -94,10 +88,10 @@ impl FreezeRecord {
             params.push(repo.to_string());
         }
 
-        if let Some(is_active) = active {
-            if is_active {
-                query.push_str(" AND status = 'active'");
-            }
+        if let Some(is_active) = active
+            && is_active
+        {
+            query.push_str(" AND status = 'active'");
         }
 
         query.push_str(" ORDER BY created_at DESC");
@@ -203,12 +197,6 @@ impl FreezeRecord {
 // PermissionRecord CRUD operations
 impl PermissionRecord {
     pub async fn create(pool: &PgPool, record: &PermissionRecord) -> Result<PermissionRecord> {
-        let role_str = match record.role {
-            Role::Admin => "admin",
-            Role::Maintainer => "maintainer",
-            Role::Contributor => "contributor",
-        };
-
         let row = sqlx::query!(
             r#"
             INSERT INTO permission_records 
@@ -220,7 +208,7 @@ impl PermissionRecord {
             record.installation_id,
             record.repository,
             record.user_login,
-            role_str,
+            record.role.to_string(),
             record.can_freeze,
             record.can_unfreeze,
             record.can_emergency_override,
@@ -351,12 +339,6 @@ impl PermissionRecord {
 // CommandLog CRUD operations
 impl CommandLog {
     pub async fn create(pool: &PgPool, log: &CommandLog) -> Result<CommandLog> {
-        let result_str = match log.result {
-            CommandResult::Success => "success",
-            CommandResult::Error => "error",
-            CommandResult::Unauthorized => "unauthorized",
-        };
-
         let row = sqlx::query!(
             r#"
             INSERT INTO command_logs 
@@ -370,7 +352,7 @@ impl CommandLog {
             log.user_login,
             log.command,
             log.comment_id,
-            result_str,
+            log.result.to_string(),
             log.error_message,
             log.created_at
         )
