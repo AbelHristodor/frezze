@@ -256,6 +256,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_parse_to_utc_invalid() {
         let datetime_str = "invalid-datetime";
         let _ = parse_to_utc(datetime_str);
