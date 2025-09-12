@@ -33,31 +33,31 @@ help:
 # Build Executables
 ########################################################
 run: migrate ## Run the application (server)
-	cargo run -p rstat-server -- start
+	cargo run -- start
 
 seed: migrate ## Populate the database with initial data
-	cargo run -p rstat-server -- seed
+	cargo run -- seed
 
 config-load: migrate ## Load services from a YAML file (set FILE=path/to/file.yaml)
-	cargo run -p rstat-server -- config load --file $${FILE:-config/services.yaml}
+	cargo run -- config load --file $${FILE:-config/services.yaml}
 
 config-load-dir: migrate ## Load services from a directory of YAML files (set DIR=path/to/dir)
-	cargo run -p rstat-server -- config load-dir --dir $${DIR:-config}
+	cargo run -- config load-dir --dir $${DIR:-config}
 
 config-load-default: migrate ## Load services from default configuration locations
-	cargo run -p rstat-server -- config load-default
+	cargo run -- config load-default
 
 metrics-calculate: migrate ## Calculate metrics for all services
-	cargo run -p rstat-server -- metrics calculate
+	cargo run -- metrics calculate
 
 metrics-calculate-service: migrate ## Calculate metrics for a specific service
-	cargo run -p rstat-server -- metrics calculate-service $$SERVICE_ID
+	cargo run -- metrics calculate-service $$SERVICE_ID
 
 metrics-calculate-yesterday: migrate ## Calculate yesterday's metrics for all services
-	cargo run -p rstat-server -- metrics calculate-yesterday
+	cargo run -- metrics calculate-yesterday
 
 metrics-cleanup: migrate ## Clean up old metrics (set DAYS=N)
-	cargo run -p rstat-server -- metrics cleanup --days $${DAYS:-90}
+	cargo run -- metrics cleanup --days $${DAYS:-90}
 
 check: ## Check the application
 	cargo check
@@ -69,11 +69,11 @@ build: ## Build the application
 
 
 build-docker: ## Build the application Docker image
-	docker build -t rstat .
+	docker build -t frezze .
 .PHONY: build-docker
 
 run-docker: ## Run the application Docker image
-	docker run -p 3001:3001 rstat
+	docker run -p 3001:3001 frezze
 .PHONY: run-docker
 
 
