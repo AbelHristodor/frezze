@@ -1,32 +1,54 @@
+//! Command-line interface for the Frezze GitHub repository freeze bot.
+//!
+//! This module defines the CLI structure using clap for parsing command-line arguments.
+//! It provides commands for running the server, managing webhooks, and refreshing PR status.
+
 use std::net::Ipv4Addr;
 
 use clap::{Parser, Subcommand};
 
+/// Main CLI structure for the Frezze application.
+///
+/// Provides a command-line interface for managing GitHub repository freezes,
+/// running the server, and performing maintenance operations.
 #[derive(Parser)]
 #[command(version, about, long_about = None, propagate_version = true)]
 pub struct Cli {
+    /// The subcommand to execute
     #[command(subcommand)]
     pub command: Commands,
 }
 
+/// Top-level commands available in the Frezze CLI.
+///
+/// Each command provides different functionality for managing the Frezze application
+/// and GitHub repository freezes.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Server management commands
     Server {
         #[command(subcommand)]
         command: ServerCommands,
     },
+    /// Webhook management commands
     Webhook {
         #[command(subcommand)]
         command: WebhookCommands,
     },
+    /// PR refresh commands for syncing freeze status
     Refresh {
         #[command(subcommand)]
         command: RefreshCommands,
     },
 }
 
+/// Commands for managing the Frezze server.
+///
+/// Provides functionality to start and configure the web server that handles
+/// GitHub webhooks and freeze operations.
 #[derive(Subcommand)]
 pub enum ServerCommands {
+    /// Start the Frezze web server
     Start {
         /// The server address to bind to
         #[arg(short, long, default_value = "0.0.0.0", env("SERVER_ADDRES"))]
@@ -42,7 +64,7 @@ pub enum ServerCommands {
             env("DATABASE_MIGRATIONS_PATH"),
             default_value = "migrations")]
         migrations_path: String,
-        /// Database URL
+        /// Database URL for PostgreSQL connection
         #[arg(
             short,
             long,
@@ -50,10 +72,10 @@ pub enum ServerCommands {
             env("DATABASE_URL")
         )]
         database_url: String,
-        /// Github App ID
+        /// GitHub App ID for API authentication
         #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
         gh_app_id: u64,
-        /// Github App Private Key Path
+        /// Path to GitHub App private key file
         #[arg(
             long,
             env("GITHUB_APP_PRIVATE_KEY_PATH"),
@@ -63,7 +85,7 @@ pub enum ServerCommands {
             default_value = "gh_app_private_key.pem",
         )]
         gh_private_key_path: Option<String>,
-        /// Github App Private Key in Base64 format
+        /// GitHub App private key in Base64 format (alternative to file path)
         #[arg(long,
             env("GITHUB_APP_PRIVATE_KEY_BASE64"),
             value_name = "BASE64",
@@ -74,16 +96,25 @@ pub enum ServerCommands {
     },
 }
 
+/// Commands for managing GitHub webhooks.
+///
+/// Provides functionality to start and manage webhook processing for GitHub events.
 #[derive(Subcommand)]
 pub enum WebhookCommands {
+    /// Start the webhook processing service
     Start,
 }
 
+/// Commands for refreshing PR check runs to sync with freeze status.
+///
+/// These commands ensure that all open pull requests have up-to-date check runs
+/// that reflect the current freeze status, which is essential for scheduled freezes
+/// and maintaining consistency across repositories.
 #[derive(Subcommand)]
 pub enum RefreshCommands {
-    /// Refresh all open PRs to sync with current freeze status
+    /// Refresh all open PRs across all repositories with active freeze records
     All {
-        /// Database URL
+        /// Database URL for PostgreSQL connection
         #[arg(
             short,
             long,
@@ -91,10 +122,10 @@ pub enum RefreshCommands {
             env("DATABASE_URL")
         )]
         database_url: String,
-        /// Github App ID
+        /// GitHub App ID for API authentication
         #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
         gh_app_id: u64,
-        /// Github App Private Key Path
+        /// Path to GitHub App private key file
         #[arg(
             long,
             env("GITHUB_APP_PRIVATE_KEY_PATH"),
@@ -102,7 +133,7 @@ pub enum RefreshCommands {
             value_hint = clap::ValueHint::FilePath,
         )]
         gh_private_key_path: Option<String>,
-        /// Github App Private Key in Base64 format
+        /// GitHub App private key in Base64 format (alternative to file path)
         #[arg(long,
             env("GITHUB_APP_PRIVATE_KEY_BASE64"),
             value_name = "BASE64",
@@ -113,13 +144,13 @@ pub enum RefreshCommands {
     },
     /// Refresh PRs for a specific repository
     Repository {
-        /// Repository in format owner/repo
+        /// Repository name in "owner/repo" format
         #[arg(short, long)]
         repository: String,
-        /// Installation ID
+        /// GitHub App installation ID for the repository
         #[arg(short, long)]
         installation_id: i64,
-        /// Database URL
+        /// Database URL for PostgreSQL connection
         #[arg(
             short,
             long,
@@ -127,10 +158,10 @@ pub enum RefreshCommands {
             env("DATABASE_URL")
         )]
         database_url: String,
-        /// Github App ID
+        /// GitHub App ID for API authentication
         #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
         gh_app_id: u64,
-        /// Github App Private Key Path
+        /// Path to GitHub App private key file
         #[arg(
             long,
             env("GITHUB_APP_PRIVATE_KEY_PATH"),
@@ -138,7 +169,7 @@ pub enum RefreshCommands {
             value_hint = clap::ValueHint::FilePath,
         )]
         gh_private_key_path: Option<String>,
-        /// Github App Private Key in Base64 format
+        /// GitHub App private key in Base64 format (alternative to file path)
         #[arg(long,
             env("GITHUB_APP_PRIVATE_KEY_BASE64"),
             value_name = "BASE64",

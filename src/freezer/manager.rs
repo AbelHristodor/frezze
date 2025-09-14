@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     database::{Database, models::FreezeRecord},
-    github::Github,
     freezer::pr_refresh::PrRefresher,
+    github::Github,
 };
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
@@ -20,8 +20,8 @@ pub struct FreezeManager {
 impl FreezeManager {
     pub fn new(db: Arc<Database>, github: Arc<Github>) -> Self {
         let pr_refresher = PrRefresher::new(github.clone(), db.clone());
-        FreezeManager { 
-            db, 
+        FreezeManager {
+            db,
             github,
             pr_refresher,
         }
@@ -135,18 +135,28 @@ impl FreezeManager {
     }
 
     /// Refresh PRs for a specific repository
-    pub async fn refresh_repository_prs(&self, installation_id: i64, repository: &str) -> Result<()> {
-        self.pr_refresher.refresh_repository(installation_id, repository).await
+    pub async fn refresh_repository_prs(
+        &self,
+        installation_id: i64,
+        repository: &str,
+    ) -> Result<()> {
+        self.pr_refresher
+            .refresh_repository(installation_id, repository)
+            .await
     }
 
     /// Unfreeze a repository
     pub async fn unfreeze(&self, installation_id: i64, repo: &str, ended_by: String) -> Result<()> {
-        let conn = self.db.get_connection()
+        let conn = self
+            .db
+            .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
         // Get active freeze records for this repository
-        let freeze_records = FreezeRecord::list(conn, Some(installation_id), Some(repo), Some(true)).await
-            .map_err(|e| anyhow!("Failed to get freeze records for repo {}: {}", repo, e))?;
+        let freeze_records =
+            FreezeRecord::list(conn, Some(installation_id), Some(repo), Some(true))
+                .await
+                .map_err(|e| anyhow!("Failed to get freeze records for repo {}: {}", repo, e))?;
 
         if freeze_records.is_empty() {
             return Err(anyhow!("No active freeze found for repository: {}", repo));
@@ -154,8 +164,14 @@ impl FreezeManager {
 
         // End all active freezes for this repository
         for record in freeze_records {
-            FreezeRecord::update_status(conn, record.id, crate::database::models::FreezeStatus::Ended, Some(ended_by.clone())).await
-                .map_err(|e| anyhow!("Failed to end freeze record {}: {}", record.id, e))?;
+            FreezeRecord::update_status(
+                conn,
+                record.id,
+                crate::database::models::FreezeStatus::Ended,
+                Some(ended_by.clone()),
+            )
+            .await
+            .map_err(|e| anyhow!("Failed to end freeze record {}: {}", record.id, e))?;
         }
 
         // Refresh PRs after unfreezing
