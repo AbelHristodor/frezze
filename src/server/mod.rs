@@ -55,8 +55,21 @@ impl Server {
 
     pub async fn start(&self) -> Result<()> {
         // Initialize the github client
-        let github = github::Github::new(self.gh_app_id, &self.read_gh_private_key()?).await;
-        let freeze_manager = FreezeManager::new(self.db.clone());
+        let github =
+            Arc::new(github::Github::new(self.gh_app_id, &self.read_gh_private_key()?).await);
+        let freeze_manager = FreezeManager::new(self.db.clone(), github.clone());
+
+        // Spawn background task for PR refresh
+        let pr_refresher = freeze_manager.pr_refresher.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                if let Err(e) = pr_refresher.refresh_all_prs().await {
+                    tracing::error!("Failed to refresh PRs: {}", e);
+                }
+            }
+        });
 
         // Create the TCP listener
         let listener = tokio::net::TcpListener::bind((self.address, self.port)).await?;
@@ -67,7 +80,7 @@ impl Server {
             listener,
             get_router(AppState {
                 freeze_manager: Arc::new(freeze_manager),
-                gh: Arc::new(github),
+                gh: github,
             }),
         )
         .await?;
@@ -114,10 +127,12 @@ fn get_router(state: AppState) -> Router {
         .route("/", get(handlers::health))
         .route(
             "/webhook",
-            post(handlers::webhook).layer(middleware::from_fn_with_state(
-                hmac_state,
-                verify_hmac_middleware,
-            )),
+            post(handlers::webhook)
+                .layer(middleware::from_fn_with_state(
+                    hmac_state,
+                    verify_hmac_middleware,
+                ))
+                .layer(middleware::from_fn(middlewares::gh_event::github_event)),
         )
         .layer(
             TraceLayer::new_for_http()

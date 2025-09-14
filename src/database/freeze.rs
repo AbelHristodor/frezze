@@ -76,29 +76,32 @@ impl FreezeRecord {
         active: Option<bool>,
     ) -> Result<Vec<FreezeRecord>> {
         let mut query = "SELECT * FROM freeze_records WHERE 1=1".to_string();
-        let mut params = Vec::new();
+        let mut param_count = 0;
 
-        if let Some(inst_id) = installation_id {
-            query.push_str(&format!(" AND installation_id = ${}", params.len() + 1));
-            params.push(inst_id.to_string());
+        if installation_id.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND installation_id = ${}", param_count));
         }
 
-        if let Some(repo) = repository {
-            query.push_str(&format!(" AND repository = ${}", params.len() + 1));
-            params.push(repo.to_string());
+        if repository.is_some() {
+            param_count += 1;
+            query.push_str(&format!(" AND repository = ${}", param_count));
         }
 
-        if let Some(is_active) = active
-            && is_active
-        {
+        if let Some(is_active) = active && is_active {
             query.push_str(" AND status = 'active'");
         }
 
         query.push_str(" ORDER BY created_at DESC");
 
         let mut sql_query = sqlx::query(&query);
-        for param in &params {
-            sql_query = sql_query.bind(param);
+        
+        if let Some(inst_id) = installation_id {
+            sql_query = sql_query.bind(inst_id);
+        }
+        
+        if let Some(repo) = repository {
+            sql_query = sql_query.bind(repo);
         }
 
         let rows = sql_query.fetch_all(pool).await?;
@@ -180,6 +183,41 @@ impl FreezeRecord {
             .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn get_scheduled_to_activate(pool: &PgPool) -> Result<Vec<FreezeRecord>> {
+        let now = Utc::now();
+        let rows = sqlx::query!(
+            r#"
+            SELECT * FROM freeze_records 
+            WHERE status = 'active' 
+            AND started_at <= $1 
+            AND (expires_at IS NULL OR expires_at > $1)
+            ORDER BY started_at ASC
+            "#,
+            now
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let mut records = Vec::new();
+        for row in rows {
+            records.push(FreezeRecord {
+                id: row.id,
+                repository: row.repository,
+                installation_id: row.installation_id,
+                started_at: row.started_at,
+                expires_at: row.expires_at,
+                ended_at: row.ended_at,
+                reason: row.reason,
+                initiated_by: row.initiated_by,
+                ended_by: row.ended_by,
+                status: FreezeStatus::from(row.status.as_str()),
+                created_at: row.created_at,
+            });
+        }
+
+        Ok(records)
     }
 
     pub async fn is_frozen(pool: &PgPool, installation_id: i64, repository: &str) -> Result<bool> {

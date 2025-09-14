@@ -9,6 +9,7 @@ use axum::{
     response::Response,
 };
 use octocrab::models::webhook_events::WebhookEvent;
+use tracing::debug;
 
 const GH_EVENT_HEADER: &str = "X-GitHub-Event";
 
@@ -29,10 +30,12 @@ impl GitHubEventExt for Request {
 
 /// This middleware adds the GitHub event to the request context.
 pub async fn github_event(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+    debug!("Extracting github event");
     let event_header = extract_event_from_request(&req)?;
     let body = extract_body_from_request(&mut req).await?;
     let event = parse_webhook_event(&event_header, &body)?;
 
+    debug!("Extracting Installation ID");
     let installation_id = event.installation.as_ref().map(|i| i.id().0 as i64);
 
     // Build the new request with the event in the context
@@ -44,6 +47,7 @@ pub async fn github_event(mut req: Request, next: Next) -> Result<Response, Stat
     req.extensions_mut().insert(Arc::new(ctx));
     restore_request_body(&mut req, body);
 
+    debug!("Going on...");
     Ok(next.run(req).await)
 }
 

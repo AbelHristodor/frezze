@@ -35,30 +35,6 @@ help:
 run: migrate ## Run the application (server)
 	cargo run -- start
 
-seed: migrate ## Populate the database with initial data
-	cargo run -- seed
-
-config-load: migrate ## Load services from a YAML file (set FILE=path/to/file.yaml)
-	cargo run -- config load --file $${FILE:-config/services.yaml}
-
-config-load-dir: migrate ## Load services from a directory of YAML files (set DIR=path/to/dir)
-	cargo run -- config load-dir --dir $${DIR:-config}
-
-config-load-default: migrate ## Load services from default configuration locations
-	cargo run -- config load-default
-
-metrics-calculate: migrate ## Calculate metrics for all services
-	cargo run -- metrics calculate
-
-metrics-calculate-service: migrate ## Calculate metrics for a specific service
-	cargo run -- metrics calculate-service $$SERVICE_ID
-
-metrics-calculate-yesterday: migrate ## Calculate yesterday's metrics for all services
-	cargo run -- metrics calculate-yesterday
-
-metrics-cleanup: migrate ## Clean up old metrics (set DAYS=N)
-	cargo run -- metrics cleanup --days $${DAYS:-90}
-
 check: ## Check the application
 	cargo check
 .PHONY: check

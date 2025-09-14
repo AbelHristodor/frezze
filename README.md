@@ -9,6 +9,7 @@ A GitHub App built in Rust that manages repository freezes through comment comma
 - **Organization-wide freezes** - Freeze all repositories at once
 - **Audit logging** - Track all freeze/unfreeze actions
 - **Permission system** - Role-based access control
+- **PR refresh system** - Automatically sync PR check runs with freeze status
 - **Notifications** - Slack/Discord integration (planned)
 
 ## Commands
@@ -32,6 +33,53 @@ All commands are used in GitHub issue or PR comments:
 ### Duration Formats
 - Simple: `2h`, `30m`, `1d`, `45s`
 - ISO 8601: `PT2H30M`, `P1D`, `PT45S`
+
+## PR Refresh System
+
+The PR refresh system ensures that all open pull requests have up-to-date check runs that reflect the current freeze status. This is essential for scheduled freezes and maintaining consistency.
+
+### CLI Commands
+
+#### Refresh All PRs
+Refresh check runs for all open PRs across all repositories with active freeze records:
+
+```bash
+# Using environment variables
+frezze refresh all
+
+# With explicit parameters
+frezze refresh all \
+  --database-url "postgresql://user:pass@localhost/frezze" \
+  --gh-app-id 123456 \
+  --gh-private-key-path ./private-key.pem
+```
+
+#### Refresh Specific Repository
+Refresh check runs for all open PRs in a specific repository:
+
+```bash
+frezze refresh repository \
+  --repository "owner/repo" \
+  --installation-id 12345678 \
+  --database-url "postgresql://user:pass@localhost/frezze" \
+  --gh-app-id 123456 \
+  --gh-private-key-path ./private-key.pem
+```
+
+### How It Works
+
+1. **Scheduled Check** - The system queries for active freeze records that should be enforced
+2. **PR Discovery** - For each repository with active freezes, it fetches all open pull requests
+3. **Status Evaluation** - Determines if the freeze is currently active based on start/end times
+4. **Check Run Update** - Creates GitHub check runs with success/failure status based on freeze state
+5. **Error Handling** - Logs errors for individual PRs without stopping the entire process
+
+### Integration
+
+The PR refresh system is automatically triggered when:
+- A new freeze is created
+- The server starts (planned)
+- Manual CLI commands are executed
 
 ## Quick Start
 
@@ -83,7 +131,8 @@ src/
 ├── main.rs           # Application entry point
 ├── freezer/          # Core freeze management
 │   ├── commands.rs   # Command parsing
-│   └── manager.rs    # Freeze operations
+│   ├── manager.rs    # Freeze operations
+│   └── pr_refresh.rs # PR check run refresh system
 ├── github/           # GitHub API integration
 ├── database/         # Database models and operations
 ├── server/           # Web server and webhook handlers
@@ -97,7 +146,8 @@ src/
 3. **Permission Check** - Validates user permissions
 4. **Branch Protection** - Applies/removes GitHub branch protection rules
 5. **Database Logging** - Records all freeze operations
-6. **Response** - Posts status update as comment
+6. **PR Refresh** - Updates check runs on all open PRs to reflect freeze status
+7. **Response** - Posts status update as comment
 
 ## License
 

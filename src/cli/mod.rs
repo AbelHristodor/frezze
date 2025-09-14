@@ -19,6 +19,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: WebhookCommands,
     },
+    Refresh {
+        #[command(subcommand)]
+        command: RefreshCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -73,4 +77,74 @@ pub enum ServerCommands {
 #[derive(Subcommand)]
 pub enum WebhookCommands {
     Start,
+}
+
+#[derive(Subcommand)]
+pub enum RefreshCommands {
+    /// Refresh all open PRs to sync with current freeze status
+    All {
+        /// Database URL
+        #[arg(
+            short,
+            long,
+            default_value = "postgres://postgres:postgres@localhost:5432/postgres",
+            env("DATABASE_URL")
+        )]
+        database_url: String,
+        /// Github App ID
+        #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
+        gh_app_id: u64,
+        /// Github App Private Key Path
+        #[arg(
+            long,
+            env("GITHUB_APP_PRIVATE_KEY_PATH"),
+            value_name = "PATH",
+            value_hint = clap::ValueHint::FilePath,
+        )]
+        gh_private_key_path: Option<String>,
+        /// Github App Private Key in Base64 format
+        #[arg(long,
+            env("GITHUB_APP_PRIVATE_KEY_BASE64"),
+            value_name = "BASE64",
+            value_hint = clap::ValueHint::Other,
+            required_unless_present("gh_private_key_path"),
+        )]
+        gh_private_key_base64: Option<String>,
+    },
+    /// Refresh PRs for a specific repository
+    Repository {
+        /// Repository in format owner/repo
+        #[arg(short, long)]
+        repository: String,
+        /// Installation ID
+        #[arg(short, long)]
+        installation_id: i64,
+        /// Database URL
+        #[arg(
+            short,
+            long,
+            default_value = "postgres://postgres:postgres@localhost:5432/postgres",
+            env("DATABASE_URL")
+        )]
+        database_url: String,
+        /// Github App ID
+        #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
+        gh_app_id: u64,
+        /// Github App Private Key Path
+        #[arg(
+            long,
+            env("GITHUB_APP_PRIVATE_KEY_PATH"),
+            value_name = "PATH",
+            value_hint = clap::ValueHint::FilePath,
+        )]
+        gh_private_key_path: Option<String>,
+        /// Github App Private Key in Base64 format
+        #[arg(long,
+            env("GITHUB_APP_PRIVATE_KEY_BASE64"),
+            value_name = "BASE64",
+            value_hint = clap::ValueHint::Other,
+            required_unless_present("gh_private_key_path"),
+        )]
+        gh_private_key_base64: Option<String>,
+    },
 }
