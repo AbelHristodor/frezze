@@ -340,3 +340,59 @@ impl PrRefreshService {
         Err(anyhow!("Exhausted all retry attempts for PR #{}", pr.number))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_refresh_config_default() {
+        let config = RefreshConfig::default();
+        assert_eq!(config.max_concurrent_requests, 10);
+        assert_eq!(config.batch_delay_ms, 100);
+        assert_eq!(config.max_retries, 3);
+        assert_eq!(config.base_retry_delay_ms, 1000);
+    }
+
+    #[test]
+    fn test_pull_request_info_creation() {
+        let pr_info = PullRequestInfo {
+            number: 42,
+            head_sha: "abc123def456".to_string(),
+        };
+        
+        assert_eq!(pr_info.number, 42);
+        assert_eq!(pr_info.head_sha, "abc123def456");
+    }
+
+    #[test]
+    fn test_refresh_result_creation() {
+        let result = RefreshResult {
+            total_prs: 5,
+            successful_updates: 4,
+            failed_updates: 1,
+            errors: vec!["Error updating PR #3".to_string()],
+        };
+        
+        assert_eq!(result.total_prs, 5);
+        assert_eq!(result.successful_updates, 4);
+        assert_eq!(result.failed_updates, 1);
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0], "Error updating PR #3");
+    }
+
+    #[test]
+    fn test_refresh_config_custom() {
+        let config = RefreshConfig {
+            max_concurrent_requests: 5,
+            batch_delay_ms: 200,
+            max_retries: 5,
+            base_retry_delay_ms: 500,
+        };
+        
+        assert_eq!(config.max_concurrent_requests, 5);
+        assert_eq!(config.batch_delay_ms, 200);
+        assert_eq!(config.max_retries, 5);
+        assert_eq!(config.base_retry_delay_ms, 500);
+    }
+}
