@@ -1,14 +1,18 @@
 name: Docs
+
 on:
   push:
     branches: [main]
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: deploy
   cancel-in-progress: false
+
 jobs:
   build:
     name: Build
@@ -58,7 +62,7 @@ jobs:
         run: cargo doc --no-deps
 
       - name: Add redirect
-        run: echo '<meta http-equiv="refresh" content="0;url=aoc/index.html">' > target/doc/index.html
+        run: echo '<meta http-equiv="refresh" content="0;url=frezze/index.html">' > target/doc/index.html
 
       - name: Remove lock file
         run: rm target/doc/.lock
