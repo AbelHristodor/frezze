@@ -1,7 +1,7 @@
 /// Represents a GitHub repository with owner and name components.
-/// 
+///
 /// This struct ensures consistent handling of repository identifiers throughout
-/// the application, providing utilities to construct and deconstruct the 
+/// the application, providing utilities to construct and deconstruct the
 /// "owner/repo" format used by the database.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Repository {
@@ -53,7 +53,11 @@ impl Repository {
     /// ```
     pub fn parse(full_name: &str) -> Option<Self> {
         let parts: Vec<&str> = full_name.splitn(2, '/').collect();
-        if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() && !parts[1].contains('/') {
+        if parts.len() == 2
+            && !parts[0].is_empty()
+            && !parts[1].is_empty()
+            && !parts[1].contains('/')
+        {
             Some(Self::new(parts[0], parts[1]))
         } else {
             None
@@ -154,43 +158,21 @@ mod tests {
         // Test that the Repository struct properly handles the owner/repo format
         // that the database expects versus the separate components GitHub API uses
         let repo = Repository::new("octocat", "Hello-World");
-        
+
         // Database format (what FreezeManager now expects)
         let db_format = repo.full_name();
         assert_eq!(db_format, "octocat/Hello-World");
-        
+
         // GitHub API format (separate components)
         let github_owner = repo.owner();
         let github_repo = repo.name();
         assert_eq!(github_owner, "octocat");
         assert_eq!(github_repo, "Hello-World");
-        
+
         // Round-trip test
         let parsed = Repository::parse(&db_format).unwrap();
         assert_eq!(parsed.owner(), github_owner);
         assert_eq!(parsed.name(), github_repo);
     }
-
-    #[test]
-    fn test_rebase_integration_pr_refresh_compatibility() {
-        // Test that Repository struct provides the necessary data for both
-        // database operations (full_name) and GitHub API calls (owner/name)
-        // after rebasing onto the PR refresh system from main
-        let repo = Repository::new("AbelHristodor", "frezze");
-        
-        // For database operations - uses full format
-        let db_key = repo.full_name();
-        assert_eq!(db_key, "AbelHristodor/frezze");
-        
-        // For GitHub API calls - uses separate components
-        let (owner, name) = (repo.owner(), repo.name());
-        assert_eq!(owner, "AbelHristodor");
-        assert_eq!(name, "frezze");
-        
-        // This ensures the Repository struct integrates well with both
-        // the original freeze functionality and the new PR refresh system
-        assert!(db_key.contains('/'));
-        assert!(!owner.contains('/'));
-        assert!(!name.contains('/'));
-    }
 }
+
