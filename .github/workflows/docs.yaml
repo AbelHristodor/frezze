@@ -14,7 +14,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     services:
       postgres:
         image: postgres
@@ -32,25 +32,37 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
       - name: Configure cache
         uses: Swatinem/rust-cache@v2
+
       - name: Setup pages
         id: pages
         uses: actions/configure-pages@v5
+
       - name: Clean docs folder
         run: cargo clean --doc
+
       - name: Install SQLX
-        run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
       - name: Run SQLX
-        run: cargo sqlx prepare
+        run: |
+          sqlx migrate run
+          cargo sqlx prepare
+
       - name: Build docs
         run: cargo doc --no-deps
+
       - name: Add redirect
         run: echo '<meta http-equiv="refresh" content="0;url=aoc/index.html">' > target/doc/index.html
+
       - name: Remove lock file
         run: rm target/doc/.lock
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
