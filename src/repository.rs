@@ -148,4 +148,26 @@ mod tests {
         assert_eq!(repo.owner(), "octocat");
         assert_eq!(repo.name(), "Hello-World");
     }
+
+    #[test]
+    fn test_integration_owner_repo_format() {
+        // Test that the Repository struct properly handles the owner/repo format
+        // that the database expects versus the separate components GitHub API uses
+        let repo = Repository::new("octocat", "Hello-World");
+        
+        // Database format (what FreezeManager now expects)
+        let db_format = repo.full_name();
+        assert_eq!(db_format, "octocat/Hello-World");
+        
+        // GitHub API format (separate components)
+        let github_owner = repo.owner();
+        let github_repo = repo.name();
+        assert_eq!(github_owner, "octocat");
+        assert_eq!(github_repo, "Hello-World");
+        
+        // Round-trip test
+        let parsed = Repository::parse(&db_format).unwrap();
+        assert_eq!(parsed.owner(), github_owner);
+        assert_eq!(parsed.name(), github_repo);
+    }
 }
