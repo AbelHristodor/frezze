@@ -7,6 +7,7 @@ use crate::{
         self,
         commands::{Command, CommandParser},
     },
+    repository::Repository,
     server::{AppState, middlewares::gh_event::GitHubEventContext},
 };
 
@@ -16,13 +17,8 @@ pub async fn handle_issue_comment(ctx: &GitHubEventContext, state: &AppState) ->
 
     let mng = &state.freeze_manager;
     let installation_id = ctx.installation_id.ok_or("Installation ID not found")?;
-    let repository = event.repository.as_ref().ok_or("Repository not found")?;
-    let repo_name = &repository.name;
-    let owner = &repository
-        .owner
-        .as_ref()
-        .ok_or("Repository owner not found")?
-        .login;
+    let repository_event = event.repository.as_ref().ok_or("Repository not found")?;
+    let repository = Repository::new(&repository_event.owner.as_ref().ok_or("Repository owner not found")?.login, &repository_event.name);
 
     let WebhookEventPayload::IssueComment(comment) = &event.specific else {
         error!("Expected IssueComment event, got: {:?}", event.kind);
@@ -41,7 +37,7 @@ pub async fn handle_issue_comment(ctx: &GitHubEventContext, state: &AppState) ->
                     match mng
                         .freeze(
                             installation_id,
-                            repo_name,
+                            &repository,
                             duration,
                             reason.clone(),
                             author.clone(),
@@ -59,7 +55,7 @@ pub async fn handle_issue_comment(ctx: &GitHubEventContext, state: &AppState) ->
                                 reason.map(|r| format!(" ({})", r)).unwrap_or_default();
                             format!(
                                 "✅ Repository `{}` has been frozen{}{}",
-                                repo_name, duration_str, reason_str
+                                repository, duration_str, reason_str
                             )
                         }
                         Err(e) => {
@@ -70,11 +66,11 @@ pub async fn handle_issue_comment(ctx: &GitHubEventContext, state: &AppState) ->
                 }
                 Command::Unfreeze { reason: _ } => {
                     match mng
-                        .unfreeze(installation_id, repo_name, author.clone())
+                        .unfreeze(installation_id, &repository, author.clone())
                         .await
                     {
                         Ok(_) => {
-                            format!("✅ Repository `{}` has been unfrozen", repo_name)
+                            format!("✅ Repository `{}` has been unfrozen", repository)
                         }
                         Err(e) => {
                             error!("Failed to unfreeze repository: {:?}", e);
@@ -94,8 +90,7 @@ pub async fn handle_issue_comment(ctx: &GitHubEventContext, state: &AppState) ->
         if let Err(e) = mng
             .notify_comment_issue(
                 installation_id,
-                owner,
-                repo_name,
+                &repository,
                 issue_number,
                 &response_message,
             )

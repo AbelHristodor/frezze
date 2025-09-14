@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{
     database::{Database, models::FreezeRecord},
     github::Github,
+    repository::Repository,
 };
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
@@ -24,15 +25,14 @@ impl FreezeManager {
     pub async fn notify_comment_issue(
         &self,
         installation_id: i64,
-        owner: &str,
-        repo_name: &str,
+        repository: &Repository,
         issue_nr: u64,
         msg: &str,
     ) -> Result<Comment> {
         // Create response comment
         let comment = self
             .github
-            .create_comment(installation_id as u64, owner, repo_name, issue_nr, msg)
+            .create_comment(installation_id as u64, repository.owner(), repository.name(), issue_nr, msg)
             .await?;
 
         Ok(comment)
@@ -41,7 +41,7 @@ impl FreezeManager {
     pub async fn freeze(
         &self,
         installation_id: i64,
-        repo: &str,
+        repository: &Repository,
         duration: Option<chrono::Duration>,
         reason: Option<String>,
         initiated_by: String,
@@ -53,7 +53,7 @@ impl FreezeManager {
             None => DEFAULT_FREEZE_DURATION,
         };
         let record = FreezeRecord::new(
-            repo.into(),
+            repository.full_name(),
             installation_id,
             start,
             Some(start + duration),
@@ -75,7 +75,7 @@ impl FreezeManager {
 
     pub async fn list_for_repo(
         &self,
-        repo: &str,
+        repository: &Repository,
         installation_id: i64,
         active: Option<bool>,
     ) -> Result<Vec<FreezeRecord>> {
@@ -84,31 +84,31 @@ impl FreezeManager {
             .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
-        let records = FreezeRecord::list(conn, Some(installation_id), Some(repo), active)
+        let records = FreezeRecord::list(conn, Some(installation_id), Some(&repository.full_name()), active)
             .await
-            .map_err(|e| anyhow!("Failed to list freeze records for repo {}: {}", repo, e))?;
+            .map_err(|e| anyhow!("Failed to list freeze records for repo {}: {}", repository, e))?;
 
         if records.is_empty() {
-            info!("No freeze records found for repository: {}", repo);
-            return Err(anyhow!("No freeze records found for repository: {}", repo));
+            info!("No freeze records found for repository: {}", repository);
+            return Err(anyhow!("No freeze records found for repository: {}", repository));
         }
         info!(
             "Found {} freeze records for repository: {}",
             records.len(),
-            repo
+            repository
         );
         Ok(records)
     }
 
-    pub async fn is_frozen(&self, repo: &str, installation_id: i64) -> Result<bool> {
+    pub async fn is_frozen(&self, repository: &Repository, installation_id: i64) -> Result<bool> {
         let conn = self
             .db
             .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
-        let frozen = FreezeRecord::is_frozen(conn, installation_id, repo)
+        let frozen = FreezeRecord::is_frozen(conn, installation_id, &repository.full_name())
             .await
-            .map_err(|e| anyhow!("Failed to check if repository {} is frozen: {}", repo, e))?;
+            .map_err(|e| anyhow!("Failed to check if repository {} is frozen: {}", repository, e))?;
 
         Ok(frozen)
     }
@@ -116,14 +116,14 @@ impl FreezeManager {
     pub async fn schedule_freeze(
         &self,
         installation_id: i64,
-        repo: &str,
+        repository: &Repository,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
         reason: Option<String>,
         initiated_by: String,
     ) -> Result<()> {
         let record = FreezeRecord::new(
-            repo.into(),
+            repository.full_name(),
             installation_id,
             start,
             Some(end),
@@ -141,7 +141,7 @@ impl FreezeManager {
     }
 
     /// Unfreeze a repository
-    pub async fn unfreeze(&self, installation_id: i64, repo: &str, ended_by: String) -> Result<()> {
+    pub async fn unfreeze(&self, installation_id: i64, repository: &Repository, ended_by: String) -> Result<()> {
         let conn = self
             .db
             .get_connection()
@@ -149,12 +149,12 @@ impl FreezeManager {
 
         // Get active freeze records for this repository
         let freeze_records =
-            FreezeRecord::list(conn, Some(installation_id), Some(repo), Some(true))
+            FreezeRecord::list(conn, Some(installation_id), Some(&repository.full_name()), Some(true))
                 .await
-                .map_err(|e| anyhow!("Failed to get freeze records for repo {}: {}", repo, e))?;
+                .map_err(|e| anyhow!("Failed to get freeze records for repo {}: {}", repository, e))?;
 
         if freeze_records.is_empty() {
-            return Err(anyhow!("No active freeze found for repository: {}", repo));
+            return Err(anyhow!("No active freeze found for repository: {}", repository));
         }
 
         // End all active freezes for this repository
