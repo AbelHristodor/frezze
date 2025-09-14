@@ -10,7 +10,6 @@ use chrono::{DateTime, Utc};
 use octocrab::models::issues::Comment;
 use tracing::{error, info, warn};
 
-
 use super::pr_refresh::PrRefreshService;
 
 pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2);
@@ -41,7 +40,13 @@ impl FreezeManager {
         // Create response comment
         let comment = self
             .github
-            .create_comment(installation_id as u64, repository.owner(), repository.name(), issue_nr, msg)
+            .create_comment(
+                installation_id as u64,
+                repository.owner(),
+                repository.name(),
+                issue_nr,
+                msg,
+            )
             .await?;
 
         Ok(comment)
@@ -79,26 +84,36 @@ impl FreezeManager {
         let record = FreezeRecord::create(conn, &record).await?;
 
         // Refresh PRs after creating freeze
-        match self.pr_refresh.refresh_repository_prs(
-            installation_id as u64,
-            repository.owner(),
-            repository.name(),
-            true, // Repository is now frozen
-        ).await {
+        match self
+            .pr_refresh
+            .refresh_repository_prs(
+                installation_id as u64,
+                repository.owner(),
+                repository.name(),
+                true, // Repository is now frozen
+            )
+            .await
+        {
             Ok(result) => {
                 info!(
                     "Successfully updated {} PRs for frozen repository {}",
-                    result.successful_updates, repository.full_name()
+                    result.successful_updates,
+                    repository.full_name()
                 );
                 if !result.errors.is_empty() {
                     warn!(
                         "Some PR updates failed for {}: {} errors",
-                        repository.full_name(), result.errors.len()
+                        repository.full_name(),
+                        result.errors.len()
                     );
                 }
             }
             Err(e) => {
-                warn!("Failed to refresh PRs for repository {}: {}", repository.full_name(), e);
+                warn!(
+                    "Failed to refresh PRs for repository {}: {}",
+                    repository.full_name(),
+                    e
+                );
                 // Don't fail the freeze operation if PR refresh fails
             }
         }
@@ -182,28 +197,30 @@ impl FreezeManager {
     }
 
     /// Refresh PRs for a specific repository
-    pub async fn refresh_repository_prs(
-        &self, 
-        installation_id: i64,
-        repo: &str,
-    ) -> Result<()> {
+    pub async fn refresh_repository_prs(&self, installation_id: i64, repo: &str) -> Result<()> {
         info!("Starting manual refresh for repository: {}", repo);
-        
+
         let parts: Vec<&str> = repo.split('/').collect();
         if parts.len() != 2 {
-            return Err(anyhow!("Invalid repository format: {}. Expected format: owner/repo", repo));
+            return Err(anyhow!(
+                "Invalid repository format: {}. Expected format: owner/repo",
+                repo
+            ));
         }
         let repository = Repository::new(parts[0], parts[1]);
-        
-        let is_frozen = self.is_frozen(&repository, installation_id).await?;
-        
-        match self.pr_refresh.refresh_repository_prs(
-            installation_id as u64,
-            repository.owner(),
-            repository.name(),
-            is_frozen,
-        ).await {
 
+        let is_frozen = self.is_frozen(&repository, installation_id).await?;
+
+        match self
+            .pr_refresh
+            .refresh_repository_prs(
+                installation_id as u64,
+                repository.owner(),
+                repository.name(),
+                is_frozen,
+            )
+            .await
+        {
             Ok(result) => {
                 info!(
                     "Repository {} refresh completed: {} PRs updated, {} errors",
@@ -251,7 +268,12 @@ impl FreezeManager {
     }
 
     /// Unfreeze a repository
-    pub async fn unfreeze(&self, installation_id: i64, repository: &Repository, ended_by: String) -> Result<()> {
+    pub async fn unfreeze(
+        &self,
+        installation_id: i64,
+        repository: &Repository,
+        ended_by: String,
+    ) -> Result<()> {
         let conn = self
             .db
             .get_connection()
@@ -281,29 +303,38 @@ impl FreezeManager {
         }
 
         // Refresh PRs after unfreezing
-        match self.pr_refresh.refresh_repository_prs(
-            installation_id as u64,
-            repository.owner(),
-            repository.name(),
-            false, // Repository is now unfrozen
-        ).await {
+        match self
+            .pr_refresh
+            .refresh_repository_prs(
+                installation_id as u64,
+                repository.owner(),
+                repository.name(),
+                false, // Repository is now unfrozen
+            )
+            .await
+        {
             Ok(result) => {
                 info!(
                     "Successfully updated {} PRs for unfrozen repository {}",
-                    result.successful_updates, repository.full_name()
+                    result.successful_updates,
+                    repository.full_name()
                 );
                 if !result.errors.is_empty() {
                     warn!(
                         "Some PR updates failed for {}: {} errors",
-                        repository.full_name(), result.errors.len()
+                        repository.full_name(),
+                        result.errors.len()
                     );
                 }
             }
             Err(e) => {
-                warn!("Failed to refresh PRs for repository {}: {}", repository.full_name(), e);
+                warn!(
+                    "Failed to refresh PRs for repository {}: {}",
+                    repository.full_name(),
+                    e
+                );
                 // Don't fail the unfreeze operation if PR refresh fails
             }
-
         }
 
         Ok(())

@@ -7,7 +7,9 @@ use tracing::info;
 
 use crate::server::{AppState, middlewares::gh_event::GitHubEventExt};
 
+mod helpers;
 mod issue;
+mod messages;
 mod pr;
 
 pub async fn health() -> Result<Response> {
