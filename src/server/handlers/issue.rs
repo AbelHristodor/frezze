@@ -1,116 +1,97 @@
-use axum::response::{IntoResponse, Response, Result};
-use octocrab::models::webhook_events::WebhookEventPayload;
-use tracing::{error, info};
+use axum::response::{Response, Result};
+use tracing::info;
 
-use crate::{
-    freezer::{
-        self,
-        commands::{Command, CommandParser},
-    },
-    repository::Repository,
-    server::{AppState, middlewares::gh_event::GitHubEventContext},
+use crate::freezer::{
+    self,
+    commands::{Command, CommandParser},
 };
 
-pub async fn handle_issue_comment(ctx: &GitHubEventContext, state: &AppState) -> Result<Response> {
-    let event = &ctx.event;
-    info!("Received issue comment event: {:?}", ctx.event.kind);
+use super::{helpers, messages};
 
-    let mng = &state.freeze_manager;
-    let installation_id = ctx.installation_id.ok_or("Installation ID not found")?;
-    let repository_event = event.repository.as_ref().ok_or("Repository not found")?;
-    let repository = Repository::new(&repository_event.owner.as_ref().ok_or("Repository owner not found")?.login, &repository_event.name);
+pub async fn handle_issue_comment(
+    ctx: &crate::server::middlewares::gh_event::GitHubEventContext,
+    state: &crate::server::AppState,
+) -> Result<Response> {
+    helpers::log_event_received("issue comment", &format!("{:?}", ctx.event.kind));
 
-    let WebhookEventPayload::IssueComment(comment) = &event.specific else {
-        error!("Expected IssueComment event, got: {:?}", event.kind);
-        return Err(axum::http::StatusCode::BAD_REQUEST)?;
-    };
+    let (repository, installation_id) = helpers::extract_repository_info(ctx)?;
+    let (author, issue_number, body) = helpers::extract_issue_comment_info(ctx)?;
 
-    let author = comment.comment.user.login.clone();
-    let issue_number = comment.issue.number;
-
-    if let Some(body) = comment.comment.body.clone() {
+    if let Some(body) = body {
         let parser = CommandParser::new();
 
         let response_message = match parser.parse(&body) {
-            Ok(cmd) => match cmd {
-                Command::Freeze { duration, reason } => {
-                    match mng
-                        .freeze(
-                            installation_id,
-                            &repository,
-                            duration,
-                            reason.clone(),
-                            author.clone(),
-                        )
-                        .await
-                    {
-                        Ok(r) => {
-                            let duration = match r.expires_at {
-                                Some(d) => d - r.started_at,
-                                None => freezer::manager::DEFAULT_FREEZE_DURATION,
-                            };
-
-                            let duration_str = format!(" for {}", format_duration(duration));
-                            let reason_str =
-                                reason.map(|r| format!(" ({})", r)).unwrap_or_default();
-                            format!(
-                                "✅ Repository `{}` has been frozen{}{}",
-                                repository, duration_str, reason_str
-                            )
-                        }
-                        Err(e) => {
-                            error!("Failed to freeze repository: {:?}", e);
-                            format!("❌ Failed to freeze repository: {}", e)
-                        }
-                    }
-                }
-                Command::Unfreeze { reason: _ } => {
-                    match mng
-                        .unfreeze(installation_id, &repository, author.clone())
-                        .await
-                    {
-                        Ok(_) => {
-                            format!("✅ Repository `{}` has been unfrozen", repository)
-                        }
-                        Err(e) => {
-                            error!("Failed to unfreeze repository: {:?}", e);
-                            format!("❌ Failed to unfreeze repository: {}", e)
-                        }
-                    }
-                }
-                _ => "⚠️ Command not yet implemented".to_string(),
-            },
+            Ok(cmd) => {
+                handle_freeze_command(cmd, state, installation_id, &repository, &author).await
+            }
             Err(e) => {
                 info!("Not a valid command: {}", e);
-                return Ok(axum::http::StatusCode::OK.into_response());
+                return helpers::success_response();
             }
         };
 
-        // Create response comment
-        if let Err(e) = mng
-            .notify_comment_issue(
-                installation_id,
-                &repository,
-                issue_number,
-                &response_message,
-            )
-            .await
-        {
-            error!("Failed to create response comment: {}", e);
-        }
+        helpers::send_response_comment(
+            state,
+            installation_id,
+            &repository,
+            issue_number,
+            &response_message,
+        )
+        .await?;
     }
 
-    Ok(axum::http::StatusCode::OK.into_response())
+    helpers::success_response()
 }
 
-fn format_duration(duration: chrono::Duration) -> String {
-    let total_seconds = duration.num_seconds();
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
+async fn handle_freeze_command(
+    cmd: Command,
+    state: &crate::server::AppState,
+    installation_id: i64,
+    repository: &crate::repository::Repository,
+    author: &str,
+) -> String {
+    let mng = &state.freeze_manager;
 
-    if hours > 0 {
-        format!("{}h{}m", hours, minutes)
-    } else {
-        format!("{}m", minutes)
+    match cmd {
+        Command::Freeze { duration, reason } => {
+            match mng
+                .freeze(
+                    installation_id,
+                    repository,
+                    duration,
+                    reason.clone(),
+                    author.to_string(),
+                )
+                .await
+            {
+                Ok(r) => {
+                    let duration = match r.expires_at {
+                        Some(d) => d - r.started_at,
+                        None => freezer::manager::DEFAULT_FREEZE_DURATION,
+                    };
+
+                    let duration_str = messages::format_duration_display(duration);
+                    let reason_str = messages::format_reason_display(reason);
+                    messages::freeze_success(&repository.to_string(), &duration_str, &reason_str)
+                }
+                Err(e) => {
+                    tracing::error!("Failed to freeze repository: {:?}", e);
+                    messages::freeze_error(&e.to_string())
+                }
+            }
+        }
+        Command::Unfreeze { reason: _ } => {
+            match mng
+                .unfreeze(installation_id, repository, author.to_string())
+                .await
+            {
+                Ok(_) => messages::unfreeze_success(&repository.to_string()),
+                Err(e) => {
+                    tracing::error!("Failed to unfreeze repository: {:?}", e);
+                    messages::unfreeze_error(&e.to_string())
+                }
+            }
+        }
+        _ => messages::command_not_implemented(),
     }
 }

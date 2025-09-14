@@ -175,4 +175,3 @@ mod tests {
         assert_eq!(parsed.name(), github_repo);
     }
 }
-
