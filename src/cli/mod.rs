@@ -35,11 +35,6 @@ pub enum Commands {
         #[command(subcommand)]
         command: WebhookCommands,
     },
-    /// PR refresh commands for syncing freeze status
-    Refresh {
-        #[command(subcommand)]
-        command: RefreshCommands,
-    },
 }
 
 /// Commands for managing the Frezze server.
@@ -103,79 +98,4 @@ pub enum ServerCommands {
 pub enum WebhookCommands {
     /// Start the webhook processing service
     Start,
-}
-
-/// Commands for refreshing PR check runs to sync with freeze status.
-///
-/// These commands ensure that all open pull requests have up-to-date check runs
-/// that reflect the current freeze status, which is essential for scheduled freezes
-/// and maintaining consistency across repositories.
-#[derive(Subcommand)]
-pub enum RefreshCommands {
-    /// Refresh all open PRs across all repositories with active freeze records
-    All {
-        /// Database URL for PostgreSQL connection
-        #[arg(
-            short,
-            long,
-            default_value = "postgres://postgres:postgres@localhost:5432/postgres",
-            env("DATABASE_URL")
-        )]
-        database_url: String,
-        /// GitHub App ID for API authentication
-        #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
-        gh_app_id: u64,
-        /// Path to GitHub App private key file
-        #[arg(
-            long,
-            env("GITHUB_APP_PRIVATE_KEY_PATH"),
-            value_name = "PATH",
-            value_hint = clap::ValueHint::FilePath,
-        )]
-        gh_private_key_path: Option<String>,
-        /// GitHub App private key in Base64 format (alternative to file path)
-        #[arg(long,
-            env("GITHUB_APP_PRIVATE_KEY_BASE64"),
-            value_name = "BASE64",
-            value_hint = clap::ValueHint::Other,
-            required_unless_present("gh_private_key_path"),
-        )]
-        gh_private_key_base64: Option<String>,
-    },
-    /// Refresh PRs for a specific repository
-    Repository {
-        /// Repository name in "owner/repo" format
-        #[arg(short, long)]
-        repository: String,
-        /// GitHub App installation ID for the repository
-        #[arg(short, long)]
-        installation_id: i64,
-        /// Database URL for PostgreSQL connection
-        #[arg(
-            short,
-            long,
-            default_value = "postgres://postgres:postgres@localhost:5432/postgres",
-            env("DATABASE_URL")
-        )]
-        database_url: String,
-        /// GitHub App ID for API authentication
-        #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
-        gh_app_id: u64,
-        /// Path to GitHub App private key file
-        #[arg(
-            long,
-            env("GITHUB_APP_PRIVATE_KEY_PATH"),
-            value_name = "PATH",
-            value_hint = clap::ValueHint::FilePath,
-        )]
-        gh_private_key_path: Option<String>,
-        /// GitHub App private key in Base64 format (alternative to file path)
-        #[arg(long,
-            env("GITHUB_APP_PRIVATE_KEY_BASE64"),
-            value_name = "BASE64",
-            value_hint = clap::ValueHint::Other,
-            required_unless_present("gh_private_key_path"),
-        )]
-        gh_private_key_base64: Option<String>,
-    },
 }

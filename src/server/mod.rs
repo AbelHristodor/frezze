@@ -59,18 +59,6 @@ impl Server {
             Arc::new(github::Github::new(self.gh_app_id, &self.read_gh_private_key()?).await);
         let freeze_manager = FreezeManager::new(self.db.clone(), github.clone());
 
-        // Spawn background task for PR refresh
-        let pr_refresher = freeze_manager.pr_refresher.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
-            loop {
-                interval.tick().await;
-                if let Err(e) = pr_refresher.refresh_all_prs().await {
-                    tracing::error!("Failed to refresh PRs: {}", e);
-                }
-            }
-        });
-
         // Create the TCP listener
         let listener = tokio::net::TcpListener::bind((self.address, self.port)).await?;
         info!("Server started on {}", listener.local_addr().unwrap());

@@ -306,7 +306,7 @@ impl FreezeRecord {
     /// # Returns
     ///
     /// Returns a vector of currently active freeze records, ordered by start time.
-    pub async fn get_scheduled_to_activate(pool: &PgPool) -> Result<Vec<FreezeRecord>> {
+    pub async fn get_active_freezes(pool: &PgPool) -> Result<Vec<FreezeRecord>> {
         let now = Utc::now();
         let rows = sqlx::query!(
             r#"

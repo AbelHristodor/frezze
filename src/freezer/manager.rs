@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use crate::{
     database::{Database, models::FreezeRecord},
-    freezer::pr_refresh::PrRefresher,
     github::Github,
 };
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
+use octocrab::models::issues::Comment;
 use tracing::info;
 
 pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2);
@@ -14,17 +14,28 @@ pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2)
 pub struct FreezeManager {
     pub db: Arc<Database>,
     pub github: Arc<Github>,
-    pub pr_refresher: PrRefresher,
 }
 
 impl FreezeManager {
     pub fn new(db: Arc<Database>, github: Arc<Github>) -> Self {
-        let pr_refresher = PrRefresher::new(github.clone(), db.clone());
-        FreezeManager {
-            db,
-            github,
-            pr_refresher,
-        }
+        FreezeManager { db, github }
+    }
+
+    pub async fn notify_comment_issue(
+        &self,
+        installation_id: i64,
+        owner: &str,
+        repo_name: &str,
+        issue_nr: u64,
+        msg: &str,
+    ) -> Result<Comment> {
+        // Create response comment
+        let comment = self
+            .github
+            .create_comment(installation_id as u64, owner, repo_name, issue_nr, msg)
+            .await?;
+
+        Ok(comment)
     }
 
     pub async fn freeze(
@@ -35,17 +46,17 @@ impl FreezeManager {
         reason: Option<String>,
         initiated_by: String,
     ) -> Result<FreezeRecord> {
+        // Create the record
         let start = Utc::now();
         let duration = match duration {
             Some(d) => d,
             None => DEFAULT_FREEZE_DURATION,
         };
-        let end = Some(start + duration);
         let record = FreezeRecord::new(
             repo.into(),
             installation_id,
             start,
-            end,
+            Some(start + duration),
             reason,
             initiated_by,
         );
@@ -55,10 +66,10 @@ impl FreezeManager {
             .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
+        // Save it to database
         let record = FreezeRecord::create(conn, &record).await?;
 
         // Refresh PRs after creating freeze
-        self.refresh_prs().await?;
         Ok(record)
     }
 
@@ -129,22 +140,6 @@ impl FreezeManager {
         Ok(())
     }
 
-    /// Refresh all open PRs to sync with current freeze status
-    pub async fn refresh_prs(&self) -> Result<()> {
-        self.pr_refresher.refresh_all_prs().await
-    }
-
-    /// Refresh PRs for a specific repository
-    pub async fn refresh_repository_prs(
-        &self,
-        installation_id: i64,
-        repository: &str,
-    ) -> Result<()> {
-        self.pr_refresher
-            .refresh_repository(installation_id, repository)
-            .await
-    }
-
     /// Unfreeze a repository
     pub async fn unfreeze(&self, installation_id: i64, repo: &str, ended_by: String) -> Result<()> {
         let conn = self
@@ -175,7 +170,6 @@ impl FreezeManager {
         }
 
         // Refresh PRs after unfreezing
-        //self.refresh_repository_prs(installation_id, repo).await?;
         Ok(())
     }
 }

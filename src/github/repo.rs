@@ -6,6 +6,7 @@ use crate::github::{
     },
 };
 use anyhow::{Result, anyhow};
+use octocrab::params;
 
 const GITHUB_CHECK_SUITE_NAME: &str = "Freeze";
 /*
@@ -45,7 +46,7 @@ const GITHUB_CHECK_SUITE_NAME: &str = "Freeze";
     ]
   }
 *
- */
+*/
 
 impl Github {
     /// Get a specific repository through an installation
@@ -190,5 +191,36 @@ impl Github {
         })?;
 
         Ok(())
+    }
+
+    pub async fn get_open_prs_for_repo(
+        &self,
+        owner: &str,
+        repo: &str,
+        installation_id: u64,
+    ) -> Result<Vec<u64>> {
+        let req = self
+            .with_installation_async(installation_id, |client| async move {
+                client
+                    .pulls(owner, repo)
+                    .list()
+                    .state(params::State::Open)
+                    .per_page(100)
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("Failed to fetch open PRs: {:?}", e);
+                        anyhow!("Failed to fetch open PRs: {}", e)
+                    })
+            })
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to send request: {:?}", e);
+                anyhow!("Failed to fetch open PRs: {}", e)
+            })?;
+
+        let open_prs = req.items.iter().map(|pr| pr.number).collect::<Vec<_>>();
+
+        Ok(open_prs)
     }
 }
