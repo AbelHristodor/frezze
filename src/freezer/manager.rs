@@ -7,7 +7,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use octocrab::models::issues::Comment;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 use super::pr_refresh::PrRefreshService;
 
@@ -22,7 +22,11 @@ pub struct FreezeManager {
 impl FreezeManager {
     pub fn new(db: Arc<Database>, github: Arc<Github>) -> Self {
         let pr_refresh = PrRefreshService::new(github.clone(), db.clone());
-        FreezeManager { db, github, pr_refresh }
+        FreezeManager {
+            db,
+            github,
+            pr_refresh,
+        }
     }
 
     pub async fn notify_comment_issue(
@@ -77,12 +81,16 @@ impl FreezeManager {
         let parts: Vec<&str> = repo.split('/').collect();
         if parts.len() == 2 {
             let (owner, repo_name) = (parts[0], parts[1]);
-            match self.pr_refresh.refresh_repository_prs(
-                installation_id as u64,
-                owner,
-                repo_name,
-                true, // Repository is now frozen
-            ).await {
+            match self
+                .pr_refresh
+                .refresh_repository_prs(
+                    installation_id as u64,
+                    owner,
+                    repo_name,
+                    true, // Repository is now frozen
+                )
+                .await
+            {
                 Ok(result) => {
                     info!(
                         "Successfully updated {} PRs for frozen repository {}/{}",
@@ -91,7 +99,9 @@ impl FreezeManager {
                     if !result.errors.is_empty() {
                         warn!(
                             "Some PR updates failed for {}/{}: {} errors",
-                            owner, repo_name, result.errors.len()
+                            owner,
+                            repo_name,
+                            result.errors.len()
                         );
                     }
                 }
@@ -150,18 +160,18 @@ impl FreezeManager {
     /// Manually refresh PRs for all repositories with active freezes
     pub async fn refresh_all_active_freezes(&self) -> Result<()> {
         info!("Starting manual refresh of all active freeze PRs");
-        
+
         match self.pr_refresh.refresh_all_active_freezes().await {
             Ok(results) => {
                 let total_repos = results.len();
                 let total_prs: usize = results.values().map(|r| r.successful_updates).sum();
                 let total_errors: usize = results.values().map(|r| r.failed_updates).sum();
-                
+
                 info!(
                     "Manual refresh completed: {} repositories, {} PRs updated, {} errors",
                     total_repos, total_prs, total_errors
                 );
-                
+
                 if total_errors > 0 {
                     warn!("Some PR updates failed during manual refresh");
                     for (repo, result) in results {
@@ -170,7 +180,7 @@ impl FreezeManager {
                         }
                     }
                 }
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -181,37 +191,35 @@ impl FreezeManager {
     }
 
     /// Refresh PRs for a specific repository
-    pub async fn refresh_repository_prs(
-        &self, 
-        installation_id: i64,
-        repo: &str,
-    ) -> Result<()> {
+    pub async fn refresh_repository_prs(&self, installation_id: i64, repo: &str) -> Result<()> {
         info!("Starting manual refresh for repository: {}", repo);
-        
+
         let is_frozen = self.is_frozen(repo, installation_id).await?;
-        
+
         let parts: Vec<&str> = repo.split('/').collect();
         if parts.len() != 2 {
-            return Err(anyhow!("Invalid repository format: {}. Expected format: owner/repo", repo));
+            return Err(anyhow!(
+                "Invalid repository format: {}. Expected format: owner/repo",
+                repo
+            ));
         }
         let (owner, repo_name) = (parts[0], parts[1]);
-        
-        match self.pr_refresh.refresh_repository_prs(
-            installation_id as u64,
-            owner,
-            repo_name,
-            is_frozen,
-        ).await {
+
+        match self
+            .pr_refresh
+            .refresh_repository_prs(installation_id as u64, owner, repo_name, is_frozen)
+            .await
+        {
             Ok(result) => {
                 info!(
                     "Repository {} refresh completed: {} PRs updated, {} errors",
                     repo, result.successful_updates, result.failed_updates
                 );
-                
+
                 if !result.errors.is_empty() {
                     warn!("Some PR updates failed: {:?}", result.errors);
                 }
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -281,12 +289,16 @@ impl FreezeManager {
         let parts: Vec<&str> = repo.split('/').collect();
         if parts.len() == 2 {
             let (owner, repo_name) = (parts[0], parts[1]);
-            match self.pr_refresh.refresh_repository_prs(
-                installation_id as u64,
-                owner,
-                repo_name,
-                false, // Repository is now unfrozen
-            ).await {
+            match self
+                .pr_refresh
+                .refresh_repository_prs(
+                    installation_id as u64,
+                    owner,
+                    repo_name,
+                    false, // Repository is now unfrozen
+                )
+                .await
+            {
                 Ok(result) => {
                     info!(
                         "Successfully updated {} PRs for unfrozen repository {}/{}",
@@ -295,7 +307,9 @@ impl FreezeManager {
                     if !result.errors.is_empty() {
                         warn!(
                             "Some PR updates failed for {}/{}: {} errors",
-                            owner, repo_name, result.errors.len()
+                            owner,
+                            repo_name,
+                            result.errors.len()
                         );
                     }
                 }

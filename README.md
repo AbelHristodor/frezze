@@ -17,6 +17,7 @@ A GitHub App built in Rust that manages repository freezes through comment comma
 All commands are used in GitHub issue or PR comments:
 
 ### Basic Commands
+
 - `/freeze` - Freeze current repository
 - `/freeze-all` - Freeze all repositories in organization
 - `/unfreeze` - Unfreeze current repository  
@@ -25,12 +26,14 @@ All commands are used in GitHub issue or PR comments:
 - `/freeze-help` - Show command help
 
 ### Advanced Options
+
 - `/freeze --duration 2h` - Freeze for 2 hours
 - `/freeze --reason "Release v1.2.3"` - Freeze with reason
 - `/freeze --duration 1d --reason "Emergency maintenance"` - Combined options
 - `/schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h` - Schedule freeze
 
 ### Duration Formats
+
 - Simple: `2h`, `30m`, `1d`, `45s`
 - ISO 8601: `PT2H30M`, `P1D`, `PT45S`
 
@@ -41,6 +44,7 @@ The PR refresh system ensures that all open pull requests have up-to-date check 
 ### CLI Commands
 
 #### Refresh All PRs
+
 Refresh check runs for all open PRs across all repositories with active freeze records:
 
 ```bash
@@ -55,6 +59,7 @@ frezze refresh all \
 ```
 
 #### Refresh Specific Repository
+
 Refresh check runs for all open PRs in a specific repository:
 
 ```bash
@@ -77,6 +82,7 @@ frezze refresh repository \
 ### Integration
 
 The PR refresh system is automatically triggered when:
+
 - A new freeze is created
 - The server starts (planned)
 - Manual CLI commands are executed
@@ -84,11 +90,13 @@ The PR refresh system is automatically triggered when:
 ## Quick Start
 
 ### Prerequisites
+
 - Rust 1.70+
 - PostgreSQL
 - GitHub App credentials
 
 ### Setup
+
 ```bash
 # Clone and build
 git clone https://github.com/yourusername/frezze.git
@@ -104,7 +112,9 @@ make run
 ```
 
 ### Configuration
+
 Copy `.env.example` to `.env` and configure:
+
 ```env
 DATABASE_URL=postgresql://user:pass@localhost/frezze
 GITHUB_APP_ID=your_app_id
@@ -116,6 +126,7 @@ PORT=3000
 ## Development
 
 ### Available Make Commands
+
 ```bash
 make help              # Show all available commands
 make build             # Build the application
@@ -126,6 +137,7 @@ make infrastructure-up # Start PostgreSQL with Docker
 ```
 
 ### Project Structure
+
 ```
 src/
 ├── main.rs           # Application entry point

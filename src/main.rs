@@ -70,42 +70,42 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
-        cli::Commands::Refresh { command } => {
-            match command {
-                cli::RefreshCommands::All {
+        cli::Commands::Refresh { command } => match command {
+            cli::RefreshCommands::All {
+                database_url,
+                gh_app_id,
+                gh_private_key_path,
+                gh_private_key_base64,
+            } => {
+                info!("Refreshing all active freeze PRs...");
+                refresh_all_active_freezes(
                     database_url,
                     gh_app_id,
                     gh_private_key_path,
                     gh_private_key_base64,
-                } => {
-                    info!("Refreshing all active freeze PRs...");
-                    refresh_all_active_freezes(
-                        database_url,
-                        gh_app_id,
-                        gh_private_key_path,
-                        gh_private_key_base64,
-                    ).await?;
-                }
-                cli::RefreshCommands::Repository {
+                )
+                .await?;
+            }
+            cli::RefreshCommands::Repository {
+                repository,
+                installation_id,
+                database_url,
+                gh_app_id,
+                gh_private_key_path,
+                gh_private_key_base64,
+            } => {
+                info!("Refreshing PRs for repository: {}", repository);
+                refresh_repository_prs(
                     repository,
                     installation_id,
                     database_url,
                     gh_app_id,
                     gh_private_key_path,
                     gh_private_key_base64,
-                } => {
-                    info!("Refreshing PRs for repository: {}", repository);
-                    refresh_repository_prs(
-                        repository,
-                        installation_id,
-                        database_url,
-                        gh_app_id,
-                        gh_private_key_path,
-                        gh_private_key_base64,
-                    ).await?;
-                }
+                )
+                .await?;
             }
-        }
+        },
     }
 
     Ok(())
@@ -152,19 +152,19 @@ async fn refresh_all_active_freezes(
 ) -> Result<(), anyhow::Error> {
     // Get GitHub key
     let github_key = get_github_key(gh_private_key_path, gh_private_key_base64)?;
-    
+
     // Initialize database
     let db = Arc::new(Database::new(&database_url, "migrations", 10));
-    
+
     // Initialize GitHub client
     let github = Arc::new(Github::new(gh_app_id, &github_key).await);
-    
+
     // Create freeze manager
     let freeze_manager = FreezeManager::new(db, github);
-    
+
     // Refresh all active freezes
     freeze_manager.refresh_all_active_freezes().await?;
-    
+
     info!("All active freeze PRs refreshed successfully");
     Ok(())
 }
@@ -179,19 +179,21 @@ async fn refresh_repository_prs(
 ) -> Result<(), anyhow::Error> {
     // Get GitHub key
     let github_key = get_github_key(gh_private_key_path, gh_private_key_base64)?;
-    
+
     // Initialize database
     let db = Arc::new(Database::new(&database_url, "migrations", 10));
-    
+
     // Initialize GitHub client
     let github = Arc::new(Github::new(gh_app_id, &github_key).await);
-    
+
     // Create freeze manager
     let freeze_manager = FreezeManager::new(db, github);
-    
+
     // Refresh repository PRs
-    freeze_manager.refresh_repository_prs(installation_id, &repository).await?;
-    
+    freeze_manager
+        .refresh_repository_prs(installation_id, &repository)
+        .await?;
+
     info!("Repository {} PRs refreshed successfully", repository);
     Ok(())
 }
