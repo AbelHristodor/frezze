@@ -1,7 +1,11 @@
 use clap::Parser;
+use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use crate::database::Database;
+use crate::freezer::manager::FreezeManager;
+use crate::github::Github;
 use crate::server::{Server, config::ServerConfig};
 
 mod cli;
@@ -67,6 +71,42 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        cli::Commands::Refresh { command } => {
+            match command {
+                cli::RefreshCommands::All {
+                    database_url,
+                    gh_app_id,
+                    gh_private_key_path,
+                    gh_private_key_base64,
+                } => {
+                    info!("Refreshing all active freeze PRs...");
+                    refresh_all_active_freezes(
+                        database_url,
+                        gh_app_id,
+                        gh_private_key_path,
+                        gh_private_key_base64,
+                    ).await?;
+                }
+                cli::RefreshCommands::Repository {
+                    repository,
+                    installation_id,
+                    database_url,
+                    gh_app_id,
+                    gh_private_key_path,
+                    gh_private_key_base64,
+                } => {
+                    info!("Refreshing PRs for repository: {}", repository);
+                    refresh_repository_prs(
+                        repository,
+                        installation_id,
+                        database_url,
+                        gh_app_id,
+                        gh_private_key_path,
+                        gh_private_key_base64,
+                    ).await?;
+                }
+            }
+        }
     }
 
     Ok(())
@@ -103,4 +143,56 @@ fn get_github_key(
             "Either GitHub private key path or base64 key must be provided"
         ))
     }
+}
+
+async fn refresh_all_active_freezes(
+    database_url: String,
+    gh_app_id: u64,
+    gh_private_key_path: Option<String>,
+    gh_private_key_base64: Option<String>,
+) -> Result<(), anyhow::Error> {
+    // Get GitHub key
+    let github_key = get_github_key(gh_private_key_path, gh_private_key_base64)?;
+    
+    // Initialize database
+    let db = Arc::new(Database::new(&database_url, "migrations", 10));
+    
+    // Initialize GitHub client
+    let github = Arc::new(Github::new(gh_app_id, &github_key).await);
+    
+    // Create freeze manager
+    let freeze_manager = FreezeManager::new(db, github);
+    
+    // Refresh all active freezes
+    freeze_manager.refresh_all_active_freezes().await?;
+    
+    info!("All active freeze PRs refreshed successfully");
+    Ok(())
+}
+
+async fn refresh_repository_prs(
+    repository: String,
+    installation_id: i64,
+    database_url: String,
+    gh_app_id: u64,
+    gh_private_key_path: Option<String>,
+    gh_private_key_base64: Option<String>,
+) -> Result<(), anyhow::Error> {
+    // Get GitHub key
+    let github_key = get_github_key(gh_private_key_path, gh_private_key_base64)?;
+    
+    // Initialize database
+    let db = Arc::new(Database::new(&database_url, "migrations", 10));
+    
+    // Initialize GitHub client
+    let github = Arc::new(Github::new(gh_app_id, &github_key).await);
+    
+    // Create freeze manager
+    let freeze_manager = FreezeManager::new(db, github);
+    
+    // Refresh repository PRs
+    freeze_manager.refresh_repository_prs(installation_id, &repository).await?;
+    
+    info!("Repository {} PRs refreshed successfully", repository);
+    Ok(())
 }

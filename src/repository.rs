@@ -170,4 +170,27 @@ mod tests {
         assert_eq!(parsed.owner(), github_owner);
         assert_eq!(parsed.name(), github_repo);
     }
+
+    #[test]
+    fn test_rebase_integration_pr_refresh_compatibility() {
+        // Test that Repository struct provides the necessary data for both
+        // database operations (full_name) and GitHub API calls (owner/name)
+        // after rebasing onto the PR refresh system from main
+        let repo = Repository::new("AbelHristodor", "frezze");
+        
+        // For database operations - uses full format
+        let db_key = repo.full_name();
+        assert_eq!(db_key, "AbelHristodor/frezze");
+        
+        // For GitHub API calls - uses separate components
+        let (owner, name) = (repo.owner(), repo.name());
+        assert_eq!(owner, "AbelHristodor");
+        assert_eq!(name, "frezze");
+        
+        // This ensures the Repository struct integrates well with both
+        // the original freeze functionality and the new PR refresh system
+        assert!(db_key.contains('/'));
+        assert!(!owner.contains('/'));
+        assert!(!name.contains('/'));
+    }
 }
