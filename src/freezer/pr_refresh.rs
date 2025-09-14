@@ -5,6 +5,7 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+
 use anyhow::{Result, anyhow};
 use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus};
 use tracing::{error, info, warn};
@@ -400,5 +401,5 @@ mod tests {
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.base_retry_delay_ms, 500);
     }
-}
 
+}

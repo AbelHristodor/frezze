@@ -1,4 +1,7 @@
-use crate::server::{AppState, middlewares::gh_event::GitHubEventContext};
+use crate::{
+    repository::Repository,
+    server::{AppState, middlewares::gh_event::GitHubEventContext},
+};
 use axum::response::{IntoResponse, Response, Result};
 use octocrab::{
     models::webhook_events::*,
@@ -12,17 +15,16 @@ pub async fn handle_pull_request(ctx: &GitHubEventContext, state: &AppState) -> 
     let gh = &state.gh;
 
     let installation_id = ctx.installation_id.ok_or("Installation ID not found")?;
-    let repository = event.repository.as_ref().ok_or("Repository not found")?;
-    let repo = &repository.name;
-    let owner = &repository.owner.as_ref().ok_or("Owner not found")?.login;
+    let repository_event = event.repository.as_ref().ok_or("Repository not found")?;
+    let repository = Repository::new(&repository_event.owner.as_ref().ok_or("Owner not found")?.login, &repository_event.name);
 
     let mut conclusion = CheckRunConclusion::Failure; // default as if it's frozen
 
-    if !mng.is_frozen(repo, installation_id).await.map_err(|e| {
-        tracing::error!("Failed to check if repository {} is frozen: {:?}", repo, e);
+    if !mng.is_frozen(&repository, installation_id).await.map_err(|e| {
+        tracing::error!("Failed to check if repository {} is frozen: {:?}", repository, e);
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
     })? {
-        info!("Repository {} is not frozen", repo);
+        info!("Repository {} is not frozen", repository);
         conclusion = CheckRunConclusion::Success; // if not frozen, set to success
     }
 
@@ -31,13 +33,13 @@ pub async fn handle_pull_request(ctx: &GitHubEventContext, state: &AppState) -> 
         return Err(axum::http::StatusCode::BAD_REQUEST)?;
     };
 
-    info!("Received PR event for repository: {}/{}", owner, repo);
+    info!("Received PR event for repository: {}", repository);
 
     let head_sha = &pr_event.pull_request.head.sha;
 
     gh.create_check_run(
-        owner,
-        repo,
+        repository.owner(),
+        repository.name(),
         head_sha,
         CheckRunStatus::Completed,
         conclusion,

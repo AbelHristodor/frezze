@@ -3,11 +3,13 @@ use std::sync::Arc;
 use crate::{
     database::{Database, models::FreezeRecord},
     github::Github,
+    repository::Repository,
 };
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use octocrab::models::issues::Comment;
 use tracing::{error, info, warn};
+
 
 use super::pr_refresh::PrRefreshService;
 
@@ -32,15 +34,14 @@ impl FreezeManager {
     pub async fn notify_comment_issue(
         &self,
         installation_id: i64,
-        owner: &str,
-        repo_name: &str,
+        repository: &Repository,
         issue_nr: u64,
         msg: &str,
     ) -> Result<Comment> {
         // Create response comment
         let comment = self
             .github
-            .create_comment(installation_id as u64, owner, repo_name, issue_nr, msg)
+            .create_comment(installation_id as u64, repository.owner(), repository.name(), issue_nr, msg)
             .await?;
 
         Ok(comment)
@@ -49,7 +50,7 @@ impl FreezeManager {
     pub async fn freeze(
         &self,
         installation_id: i64,
-        repo: &str,
+        repository: &Repository,
         duration: Option<chrono::Duration>,
         reason: Option<String>,
         initiated_by: String,
@@ -61,7 +62,7 @@ impl FreezeManager {
             None => DEFAULT_FREEZE_DURATION,
         };
         let record = FreezeRecord::new(
-            repo.into(),
+            repository.full_name(),
             installation_id,
             start,
             Some(start + duration),
@@ -78,40 +79,28 @@ impl FreezeManager {
         let record = FreezeRecord::create(conn, &record).await?;
 
         // Refresh PRs after creating freeze
-        let parts: Vec<&str> = repo.split('/').collect();
-        if parts.len() == 2 {
-            let (owner, repo_name) = (parts[0], parts[1]);
-            match self
-                .pr_refresh
-                .refresh_repository_prs(
-                    installation_id as u64,
-                    owner,
-                    repo_name,
-                    true, // Repository is now frozen
-                )
-                .await
-            {
-                Ok(result) => {
-                    info!(
-                        "Successfully updated {} PRs for frozen repository {}/{}",
-                        result.successful_updates, owner, repo_name
+        match self.pr_refresh.refresh_repository_prs(
+            installation_id as u64,
+            repository.owner(),
+            repository.name(),
+            true, // Repository is now frozen
+        ).await {
+            Ok(result) => {
+                info!(
+                    "Successfully updated {} PRs for frozen repository {}",
+                    result.successful_updates, repository.full_name()
+                );
+                if !result.errors.is_empty() {
+                    warn!(
+                        "Some PR updates failed for {}: {} errors",
+                        repository.full_name(), result.errors.len()
                     );
-                    if !result.errors.is_empty() {
-                        warn!(
-                            "Some PR updates failed for {}/{}: {} errors",
-                            owner,
-                            repo_name,
-                            result.errors.len()
-                        );
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to refresh PRs for repository {}: {}", repo, e);
-                    // Don't fail the freeze operation if PR refresh fails
                 }
             }
-        } else {
-            warn!("Invalid repository format for PR refresh: {}", repo);
+            Err(e) => {
+                warn!("Failed to refresh PRs for repository {}: {}", repository.full_name(), e);
+                // Don't fail the freeze operation if PR refresh fails
+            }
         }
 
         Ok(record)
@@ -119,7 +108,7 @@ impl FreezeManager {
 
     pub async fn list_for_repo(
         &self,
-        repo: &str,
+        repository: &Repository,
         installation_id: i64,
         active: Option<bool>,
     ) -> Result<Vec<FreezeRecord>> {
@@ -128,7 +117,8 @@ impl FreezeManager {
             .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
-        let records = FreezeRecord::list(conn, Some(installation_id), Some(repo), active)
+        let repo = repository.full_name();
+        let records = FreezeRecord::list(conn, Some(installation_id), Some(&repo), active)
             .await
             .map_err(|e| anyhow!("Failed to list freeze records for repo {}: {}", repo, e))?;
 
@@ -144,13 +134,14 @@ impl FreezeManager {
         Ok(records)
     }
 
-    pub async fn is_frozen(&self, repo: &str, installation_id: i64) -> Result<bool> {
+    pub async fn is_frozen(&self, repository: &Repository, installation_id: i64) -> Result<bool> {
         let conn = self
             .db
             .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
-        let frozen = FreezeRecord::is_frozen(conn, installation_id, repo)
+        let repo = repository.full_name();
+        let frozen = FreezeRecord::is_frozen(conn, installation_id, &repo)
             .await
             .map_err(|e| anyhow!("Failed to check if repository {} is frozen: {}", repo, e))?;
 
@@ -191,25 +182,28 @@ impl FreezeManager {
     }
 
     /// Refresh PRs for a specific repository
-    pub async fn refresh_repository_prs(&self, installation_id: i64, repo: &str) -> Result<()> {
+    pub async fn refresh_repository_prs(
+        &self, 
+        installation_id: i64,
+        repo: &str,
+    ) -> Result<()> {
         info!("Starting manual refresh for repository: {}", repo);
-
-        let is_frozen = self.is_frozen(repo, installation_id).await?;
-
+        
         let parts: Vec<&str> = repo.split('/').collect();
         if parts.len() != 2 {
-            return Err(anyhow!(
-                "Invalid repository format: {}. Expected format: owner/repo",
-                repo
-            ));
+            return Err(anyhow!("Invalid repository format: {}. Expected format: owner/repo", repo));
         }
-        let (owner, repo_name) = (parts[0], parts[1]);
+        let repository = Repository::new(parts[0], parts[1]);
+        
+        let is_frozen = self.is_frozen(&repository, installation_id).await?;
+        
+        match self.pr_refresh.refresh_repository_prs(
+            installation_id as u64,
+            repository.owner(),
+            repository.name(),
+            is_frozen,
+        ).await {
 
-        match self
-            .pr_refresh
-            .refresh_repository_prs(installation_id as u64, owner, repo_name, is_frozen)
-            .await
-        {
             Ok(result) => {
                 info!(
                     "Repository {} refresh completed: {} PRs updated, {} errors",
@@ -232,14 +226,14 @@ impl FreezeManager {
     pub async fn schedule_freeze(
         &self,
         installation_id: i64,
-        repo: &str,
+        repository: &Repository,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
         reason: Option<String>,
         initiated_by: String,
     ) -> Result<()> {
         let record = FreezeRecord::new(
-            repo.into(),
+            repository.full_name(),
             installation_id,
             start,
             Some(end),
@@ -257,15 +251,16 @@ impl FreezeManager {
     }
 
     /// Unfreeze a repository
-    pub async fn unfreeze(&self, installation_id: i64, repo: &str, ended_by: String) -> Result<()> {
+    pub async fn unfreeze(&self, installation_id: i64, repository: &Repository, ended_by: String) -> Result<()> {
         let conn = self
             .db
             .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
+        let repo = repository.full_name();
         // Get active freeze records for this repository
         let freeze_records =
-            FreezeRecord::list(conn, Some(installation_id), Some(repo), Some(true))
+            FreezeRecord::list(conn, Some(installation_id), Some(&repo), Some(true))
                 .await
                 .map_err(|e| anyhow!("Failed to get freeze records for repo {}: {}", repo, e))?;
 
@@ -286,40 +281,29 @@ impl FreezeManager {
         }
 
         // Refresh PRs after unfreezing
-        let parts: Vec<&str> = repo.split('/').collect();
-        if parts.len() == 2 {
-            let (owner, repo_name) = (parts[0], parts[1]);
-            match self
-                .pr_refresh
-                .refresh_repository_prs(
-                    installation_id as u64,
-                    owner,
-                    repo_name,
-                    false, // Repository is now unfrozen
-                )
-                .await
-            {
-                Ok(result) => {
-                    info!(
-                        "Successfully updated {} PRs for unfrozen repository {}/{}",
-                        result.successful_updates, owner, repo_name
+        match self.pr_refresh.refresh_repository_prs(
+            installation_id as u64,
+            repository.owner(),
+            repository.name(),
+            false, // Repository is now unfrozen
+        ).await {
+            Ok(result) => {
+                info!(
+                    "Successfully updated {} PRs for unfrozen repository {}",
+                    result.successful_updates, repository.full_name()
+                );
+                if !result.errors.is_empty() {
+                    warn!(
+                        "Some PR updates failed for {}: {} errors",
+                        repository.full_name(), result.errors.len()
                     );
-                    if !result.errors.is_empty() {
-                        warn!(
-                            "Some PR updates failed for {}/{}: {} errors",
-                            owner,
-                            repo_name,
-                            result.errors.len()
-                        );
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to refresh PRs for repository {}: {}", repo, e);
-                    // Don't fail the unfreeze operation if PR refresh fails
                 }
             }
-        } else {
-            warn!("Invalid repository format for PR refresh: {}", repo);
+            Err(e) => {
+                warn!("Failed to refresh PRs for repository {}: {}", repository.full_name(), e);
+                // Don't fail the unfreeze operation if PR refresh fails
+            }
+
         }
 
         Ok(())

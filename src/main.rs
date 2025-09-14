@@ -12,6 +12,7 @@ mod cli;
 mod database;
 mod freezer;
 mod github;
+mod repository;
 mod server;
 
 #[tokio::main]
