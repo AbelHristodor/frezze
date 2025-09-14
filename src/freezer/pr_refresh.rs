@@ -1,16 +1,17 @@
 //! PR refresh system for updating check runs on all open pull requests.
 //!
-//! This module provides functionality to efficiently update all open PRs with 
+//! This module provides functionality to efficiently update all open PRs with
 //! freeze check runs while respecting GitHub API rate limits.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Result};
+
+use anyhow::{Result, anyhow};
 use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus};
 use tracing::{error, info, warn};
 
 use crate::{
-    database::{models::FreezeRecord, Database},
+    database::{Database, models::FreezeRecord},
     github::Github,
 };
 
@@ -71,11 +72,7 @@ impl PrRefreshService {
     }
 
     pub fn with_config(github: Arc<Github>, db: Arc<Database>, config: RefreshConfig) -> Self {
-        Self {
-            github,
-            db,
-            config,
-        }
+        Self { github, db, config }
     }
 
     /// Refresh check runs for all open PRs in a specific repository
@@ -92,8 +89,10 @@ impl PrRefreshService {
         );
 
         // Get all open PRs with their head SHAs
-        let prs = self.get_open_prs_with_sha(installation_id, owner, repo).await?;
-        
+        let prs = self
+            .get_open_prs_with_sha(installation_id, owner, repo)
+            .await?;
+
         if prs.is_empty() {
             info!("No open PRs found for repository {}/{}", owner, repo);
             return Ok(RefreshResult {
@@ -122,11 +121,13 @@ impl PrRefreshService {
     pub async fn refresh_all_active_freezes(&self) -> Result<HashMap<String, RefreshResult>> {
         info!("Starting global PR refresh for all active freezes");
 
-        let conn = self.db.get_connection()
+        let conn = self
+            .db
+            .get_connection()
             .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
 
         let active_freezes = FreezeRecord::get_active_freezes(conn).await?;
-        
+
         if active_freezes.is_empty() {
             info!("No active freezes found");
             return Ok(HashMap::new());
@@ -239,7 +240,6 @@ impl PrRefreshService {
                 let pr = pr.clone();
                 let owner = owner.to_string();
                 let repo = repo.to_string();
-                let conclusion = conclusion.clone();
                 let config = self.config.clone();
 
                 let handle = tokio::spawn(async move {
@@ -306,7 +306,7 @@ impl PrRefreshService {
                     repo,
                     &pr.head_sha,
                     CheckRunStatus::Completed,
-                    conclusion.clone(),
+                    conclusion,
                     installation_id,
                 )
                 .await
@@ -330,14 +330,20 @@ impl PrRefreshService {
                         );
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                     } else {
-                        error!("Failed to update PR #{} after {} attempts: {}", pr.number, attempt, e);
+                        error!(
+                            "Failed to update PR #{} after {} attempts: {}",
+                            pr.number, attempt, e
+                        );
                         return Err(e);
                     }
                 }
             }
         }
 
-        Err(anyhow!("Exhausted all retry attempts for PR #{}", pr.number))
+        Err(anyhow!(
+            "Exhausted all retry attempts for PR #{}",
+            pr.number
+        ))
     }
 }
 
@@ -360,7 +366,7 @@ mod tests {
             number: 42,
             head_sha: "abc123def456".to_string(),
         };
-        
+
         assert_eq!(pr_info.number, 42);
         assert_eq!(pr_info.head_sha, "abc123def456");
     }
@@ -373,7 +379,7 @@ mod tests {
             failed_updates: 1,
             errors: vec!["Error updating PR #3".to_string()],
         };
-        
+
         assert_eq!(result.total_prs, 5);
         assert_eq!(result.successful_updates, 4);
         assert_eq!(result.failed_updates, 1);
@@ -389,10 +395,11 @@ mod tests {
             max_retries: 5,
             base_retry_delay_ms: 500,
         };
-        
+
         assert_eq!(config.max_concurrent_requests, 5);
         assert_eq!(config.batch_delay_ms, 200);
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.base_retry_delay_ms, 500);
     }
+
 }

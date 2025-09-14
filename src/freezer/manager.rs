@@ -8,7 +8,8 @@ use crate::{
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use octocrab::models::issues::Comment;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
+
 
 use super::pr_refresh::PrRefreshService;
 
@@ -23,7 +24,11 @@ pub struct FreezeManager {
 impl FreezeManager {
     pub fn new(db: Arc<Database>, github: Arc<Github>) -> Self {
         let pr_refresh = PrRefreshService::new(github.clone(), db.clone());
-        FreezeManager { db, github, pr_refresh }
+        FreezeManager {
+            db,
+            github,
+            pr_refresh,
+        }
     }
 
     pub async fn notify_comment_issue(
@@ -146,18 +151,18 @@ impl FreezeManager {
     /// Manually refresh PRs for all repositories with active freezes
     pub async fn refresh_all_active_freezes(&self) -> Result<()> {
         info!("Starting manual refresh of all active freeze PRs");
-        
+
         match self.pr_refresh.refresh_all_active_freezes().await {
             Ok(results) => {
                 let total_repos = results.len();
                 let total_prs: usize = results.values().map(|r| r.successful_updates).sum();
                 let total_errors: usize = results.values().map(|r| r.failed_updates).sum();
-                
+
                 info!(
                     "Manual refresh completed: {} repositories, {} PRs updated, {} errors",
                     total_repos, total_prs, total_errors
                 );
-                
+
                 if total_errors > 0 {
                     warn!("Some PR updates failed during manual refresh");
                     for (repo, result) in results {
@@ -166,7 +171,7 @@ impl FreezeManager {
                         }
                     }
                 }
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -198,16 +203,17 @@ impl FreezeManager {
             repository.name(),
             is_frozen,
         ).await {
+
             Ok(result) => {
                 info!(
                     "Repository {} refresh completed: {} PRs updated, {} errors",
                     repo, result.successful_updates, result.failed_updates
                 );
-                
+
                 if !result.errors.is_empty() {
                     warn!("Some PR updates failed: {:?}", result.errors);
                 }
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -297,6 +303,7 @@ impl FreezeManager {
                 warn!("Failed to refresh PRs for repository {}: {}", repository.full_name(), e);
                 // Don't fail the unfreeze operation if PR refresh fails
             }
+
         }
 
         Ok(())
