@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use crate::{
     database::{Database, models::FreezeRecord},
+    freezer::messages,
     github::Github,
     repository::Repository,
 };
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use octocrab::models::issues::Comment;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::pr_refresh::PrRefreshService;
 
@@ -36,9 +36,9 @@ impl FreezeManager {
         repository: &Repository,
         issue_nr: u64,
         msg: &str,
-    ) -> Result<Comment> {
+    ) {
         // Create response comment
-        let comment = self
+        match self
             .github
             .create_comment(
                 installation_id as u64,
@@ -47,12 +47,47 @@ impl FreezeManager {
                 issue_nr,
                 msg,
             )
-            .await?;
-
-        Ok(comment)
+            .await
+        {
+            Ok(c) => debug!("Sent comment: {}", c.html_url),
+            Err(e) => error!("Cannot create comment: {:?}", e),
+        }
     }
 
     pub async fn freeze(
+        &self,
+        installation_id: i64,
+        repository: &Repository,
+        duration: Option<chrono::Duration>,
+        reason: Option<String>,
+        initiated_by: String,
+        issue_nr: u64,
+    ) -> Result<()> {
+        let outcome = match self
+            .handle_freeze(installation_id, repository, duration, reason, initiated_by)
+            .await
+        {
+            Ok(r) => {
+                let duration = if let Some(d) = r.expires_at {
+                    d - r.started_at
+                } else {
+                    DEFAULT_FREEZE_DURATION
+                };
+
+                let duration_str = messages::format_duration_display(duration);
+                let reason_str = messages::format_reason_display(r.reason);
+                messages::freeze_success(&repository.to_string(), &duration_str, &reason_str)
+            }
+            Err(e) => messages::freeze_error(&e.to_string()),
+        };
+
+        self.notify_comment_issue(installation_id, repository, issue_nr, &outcome)
+            .await;
+
+        Ok(())
+    }
+
+    async fn handle_freeze(
         &self,
         installation_id: i64,
         repository: &Repository,
@@ -267,8 +302,32 @@ impl FreezeManager {
         Ok(())
     }
 
-    /// Unfreeze a repository
     pub async fn unfreeze(
+        &self,
+        installation_id: i64,
+        repository: &Repository,
+        ended_by: String,
+        issue_nr: u64,
+    ) -> Result<()> {
+        let outcome = match self
+            .handle_unfreeze(installation_id, repository, ended_by)
+            .await
+        {
+            Ok(_) => messages::unfreeze_success(&repository.to_string()),
+            Err(e) => {
+                tracing::error!("Failed to unfreeze repository: {:?}", e);
+                messages::unfreeze_error(&e.to_string())
+            }
+        };
+
+        self.notify_comment_issue(installation_id, repository, issue_nr, &outcome)
+            .await;
+
+        Ok(())
+    }
+
+    /// Unfreeze a repository
+    async fn handle_unfreeze(
         &self,
         installation_id: i64,
         repository: &Repository,

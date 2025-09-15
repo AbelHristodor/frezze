@@ -51,24 +51,6 @@ pub fn extract_pull_request_info(ctx: &GitHubEventContext) -> Result<String> {
     Ok(pr_event.pull_request.head.sha.clone())
 }
 
-/// Send a response comment and handle errors consistently
-pub async fn send_response_comment(
-    state: &AppState,
-    installation_id: i64,
-    repository: &Repository,
-    issue_number: u64,
-    message: &str,
-) -> Result<()> {
-    if let Err(e) = state
-        .freeze_manager
-        .notify_comment_issue(installation_id, repository, issue_number, message)
-        .await
-    {
-        error!("Failed to create response comment: {}", e);
-    }
-    Ok(())
-}
-
 /// Standard success response for webhook handlers
 pub fn success_response() -> Result<Response> {
     Ok(axum::http::StatusCode::OK.into_response())

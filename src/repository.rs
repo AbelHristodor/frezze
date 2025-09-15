@@ -93,6 +93,36 @@ impl From<Repository> for String {
     }
 }
 
+impl From<&octocrab::models::Repository> for Repository {
+    fn from(repo: &octocrab::models::Repository) -> Self {
+        let owner = if let Some(owner) = repo.owner.clone() {
+            owner.login
+        } else {
+            String::new()
+        };
+
+        Self {
+            owner,
+            name: repo.name.clone(),
+        }
+    }
+}
+
+impl From<octocrab::models::Repository> for Repository {
+    fn from(repo: octocrab::models::Repository) -> Self {
+        let owner = if let Some(owner) = repo.owner {
+            owner.login
+        } else {
+            String::new()
+        };
+
+        Self {
+            owner,
+            name: repo.name,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
