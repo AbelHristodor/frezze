@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use database::{Database, models::{FreezeRecord, FreezeStatus}};
 use crate::{
+    database::{Database, models::FreezeRecord},
     github::Github,
     repository::Repository,
 };
@@ -295,7 +295,7 @@ impl FreezeManager {
             FreezeRecord::update_status(
                 conn,
                 record.id,
-                FreezeStatus::Ended,
+                crate::database::models::FreezeStatus::Ended,
                 Some(ended_by.clone()),
             )
             .await

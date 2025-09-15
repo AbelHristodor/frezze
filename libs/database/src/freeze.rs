@@ -8,7 +8,7 @@ use chrono::Utc;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use crate::database::models::{
+use crate::models::{
     CommandLog, CommandResult, FreezeRecord, FreezeStatus, PermissionRecord, Role,
 };
 
@@ -166,10 +166,10 @@ impl FreezeRecord {
             query.push_str(&format!(" AND repository = ${}", param_count));
         }
 
-        if let Some(is_active) = active
-            && is_active
-        {
-            query.push_str(" AND status = 'active'");
+        if let Some(is_active) = active {
+            if is_active {
+                query.push_str(" AND status = 'active'");
+            }
         }
 
         query.push_str(" ORDER BY created_at DESC");

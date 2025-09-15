@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use tracing::error;
 
 pub enum Command {
     Freeze {
@@ -225,7 +224,7 @@ impl CommandParser {
                     return Err(ParseError::InvalidArgument(arg.to_string()));
                 }
                 _ => {
-                    error!("Wrong command");
+                    eprintln!("Wrong command");
                 }
             }
         }
@@ -316,7 +315,7 @@ impl CommandParser {
                 }
                 _ => {
                     // If no specific repository is mentioned, unfreeze all
-                    error!("Wrong command format");
+                    eprintln!("Wrong command format");
                 }
             }
         }
