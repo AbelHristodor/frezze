@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use database::{Database, models::{FreezeRecord, FreezeStatus}};
 use crate::{
+    database::{Database, models::FreezeRecord},
     github::Github,
     repository::Repository,
 };
@@ -12,8 +12,7 @@ use tracing::{error, info, warn};
 
 use super::pr_refresh::PrRefreshService;
 
-// Use the constant from the freeze library
-pub use freeze::DEFAULT_FREEZE_DURATION;
+pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2);
 
 pub struct FreezeManager {
     pub db: Arc<Database>,
@@ -296,7 +295,7 @@ impl FreezeManager {
             FreezeRecord::update_status(
                 conn,
                 record.id,
-                FreezeStatus::Ended,
+                crate::database::models::FreezeStatus::Ended,
                 Some(ended_by.clone()),
             )
             .await

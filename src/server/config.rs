@@ -1,9 +1,3 @@
-//! Server configuration - now re-exports from the server library
-
-// Re-export the main config from the server library for backwards compatibility
-pub use server::ServerConfig as ServerConfigBase;
-
-/// Extended server configuration with IP address parsing
 #[derive(Debug)]
 pub struct ServerConfig {
     pub address: std::net::Ipv4Addr,
