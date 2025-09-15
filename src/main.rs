@@ -3,13 +3,12 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use crate::database::Database;
+use database::Database;
 use crate::freezer::manager::FreezeManager;
 use crate::github::Github;
 use crate::server::{Server, config::ServerConfig};
 
 mod cli;
-mod database;
 mod freezer;
 mod github;
 mod repository;

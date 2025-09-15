@@ -1,10 +1,8 @@
 use axum::response::{Response, Result};
 use tracing::info;
 
-use crate::freezer::{
-    self,
-    commands::{Command, CommandParser},
-};
+use crate::freezer;
+use command_parser::{Command, CommandParser};
 
 use super::{helpers, messages};
 

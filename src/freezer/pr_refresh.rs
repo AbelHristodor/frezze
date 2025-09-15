@@ -9,10 +9,8 @@ use anyhow::{Result, anyhow};
 use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus};
 use tracing::{error, info, warn};
 
-use crate::{
-    database::{Database, models::FreezeRecord},
-    github::Github,
-};
+use database::{Database, models::FreezeRecord};
+use crate::github::Github;
 
 /// Information about a pull request needed for check run updates
 #[derive(Debug, Clone)]

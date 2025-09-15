@@ -1,7 +1,8 @@
 use crate::freezer::manager::FreezeManager;
 use crate::server::config::ServerConfig;
 use crate::server::middlewares::hmac::verify_hmac_middleware;
-use crate::{database::Database, github};
+use database::Database;
+use crate::github;
 use anyhow::{Result, anyhow};
 use axum::routing::{get, post};
 use axum::{Router, middleware};
