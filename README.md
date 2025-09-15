@@ -138,18 +138,54 @@ make infrastructure-up # Start PostgreSQL with Docker
 
 ### Project Structure
 
+The project is now organized into multiple libraries for better modularity:
+
 ```
-src/
-├── main.rs           # Application entry point
-├── freezer/          # Core freeze management
-│   ├── commands.rs   # Command parsing
-│   ├── manager.rs    # Freeze operations
-│   └── pr_refresh.rs # PR check run refresh system
-├── github/           # GitHub API integration
-├── database/         # Database models and operations
-├── server/           # Web server and webhook handlers
-└── config/           # Configuration management
+├── src/                     # Main application code
+│   ├── main.rs             # Application entry point
+│   ├── freezer/            # Core freeze management (using freeze lib)
+│   ├── github/             # GitHub API integration
+│   ├── server/             # Web server and webhook handlers (using server lib)
+│   └── repository.rs       # Repository utilities
+├── libs/                   # Extracted libraries
+│   ├── command_parser/     # Command parsing library
+│   │   └── src/lib.rs     # Command types and parsing logic
+│   ├── database/          # Database operations library
+│   │   ├── src/lib.rs     # Database connection management
+│   │   ├── models.rs      # Data models (FreezeRecord, etc.)
+│   │   └── freeze.rs      # CRUD operations
+│   ├── freeze/            # Freeze utilities library
+│   │   └── src/lib.rs     # Freeze constants and common types
+│   └── server/            # Server utilities library
+│       └── src/lib.rs     # Server configuration and responses
+└── migrations/            # Database schema migrations
 ```
+
+## Libraries
+
+### command_parser
+- **Purpose**: Parses freeze commands from GitHub comments
+- **Key types**: `Command`, `CommandParser`, `ParseError`
+- **Dependencies**: chrono, regex
+- **Tests**: 16 unit tests covering all command parsing scenarios
+
+### database
+- **Purpose**: Database connectivity and data operations
+- **Key types**: `Database`, `FreezeRecord`, `PermissionRecord`, `CommandLog`
+- **Dependencies**: sqlx, chrono, uuid, serde
+- **Features**: PostgreSQL integration, migrations, CRUD operations
+
+### freeze
+- **Purpose**: Common freeze-related constants and utilities
+- **Key constants**: `DEFAULT_FREEZE_DURATION`
+- **Key types**: `FreezeError`, `RepositoryLike` trait
+- **Dependencies**: chrono
+
+### server
+- **Purpose**: Server configuration and HTTP utilities
+- **Key types**: `ServerConfig`, `ServerError`, response helpers
+- **Dependencies**: axum, serde, tokio
+- **Features**: JSON responses, error handling
 
 ## How It Works
 

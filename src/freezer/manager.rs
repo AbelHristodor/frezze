@@ -12,7 +12,8 @@ use tracing::{error, info, warn};
 
 use super::pr_refresh::PrRefreshService;
 
-pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2);
+// Use the constant from the freeze library
+pub use freeze::DEFAULT_FREEZE_DURATION;
 
 pub struct FreezeManager {
     pub db: Arc<Database>,

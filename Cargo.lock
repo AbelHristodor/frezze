@@ -553,6 +553,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "freeze"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "frezze"
 version = "0.1.0"
 dependencies = [
@@ -564,6 +571,7 @@ dependencies = [
  "command_parser",
  "database",
  "dotenv",
+ "freeze",
  "hex",
  "hmac",
  "jsonwebtoken",
@@ -571,6 +579,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "server",
  "sha2",
  "sqlx",
  "tokio",
@@ -1796,6 +1805,16 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

@@ -35,3 +35,5 @@ uuid = { version = "1.17.0", features = ["v4", "serde"] }
 # Local library dependencies
 command_parser = { path = "libs/command_parser" }
 database = { path = "libs/database" }
+freeze = { path = "libs/freeze" }
+server = { path = "libs/server" }
