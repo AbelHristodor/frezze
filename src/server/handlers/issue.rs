@@ -23,7 +23,7 @@ pub async fn handle_issue_comment(
 
         match parser.parse(&body) {
             Ok(cmd) => {
-                handle_freeze_command(
+                handle_command(
                     cmd,
                     state,
                     installation_id,
@@ -43,7 +43,7 @@ pub async fn handle_issue_comment(
     helpers::success_response()
 }
 
-async fn handle_freeze_command(
+async fn handle_command(
     cmd: Command,
     state: &server::AppState,
     installation_id: i64,
@@ -55,26 +55,24 @@ async fn handle_freeze_command(
 
     match cmd {
         Command::Freeze { duration, reason } => {
-            let _ = mng
-                .freeze(
-                    installation_id,
-                    repository,
-                    duration,
-                    reason.clone(),
-                    author.to_string(),
-                    issue_number,
-                )
-                .await;
+            mng.freeze(
+                installation_id,
+                repository,
+                duration,
+                reason.clone(),
+                author.to_string(),
+                issue_number,
+            )
+            .await;
         }
         Command::Unfreeze { reason: _ } => {
-            let _ = mng
-                .unfreeze(
-                    installation_id,
-                    repository,
-                    author.to_string(),
-                    issue_number,
-                )
-                .await;
+            mng.unfreeze(
+                installation_id,
+                repository,
+                author.to_string(),
+                issue_number,
+            )
+            .await;
         }
         _ => todo!("Not implemented yet!"),
     }

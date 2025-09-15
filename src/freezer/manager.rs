@@ -62,7 +62,7 @@ impl FreezeManager {
         reason: Option<String>,
         initiated_by: String,
         issue_nr: u64,
-    ) -> Result<()> {
+    ) {
         let outcome = match self
             .handle_freeze(installation_id, repository, duration, reason, initiated_by)
             .await
@@ -83,8 +83,6 @@ impl FreezeManager {
 
         self.notify_comment_issue(installation_id, repository, issue_nr, &outcome)
             .await;
-
-        Ok(())
     }
 
     async fn handle_freeze(
@@ -308,7 +306,7 @@ impl FreezeManager {
         repository: &Repository,
         ended_by: String,
         issue_nr: u64,
-    ) -> Result<()> {
+    ) {
         let outcome = match self
             .handle_unfreeze(installation_id, repository, ended_by)
             .await
@@ -322,8 +320,6 @@ impl FreezeManager {
 
         self.notify_comment_issue(installation_id, repository, issue_nr, &outcome)
             .await;
-
-        Ok(())
     }
 
     /// Unfreeze a repository
