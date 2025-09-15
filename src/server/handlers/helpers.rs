@@ -3,10 +3,7 @@ use axum::response::{IntoResponse, Response, Result};
 use octocrab::models::webhook_events::WebhookEventPayload;
 use tracing::{error, info};
 
-use crate::{
-    repository::Repository,
-    server::{AppState, middlewares::gh_event::GitHubEventContext},
-};
+use crate::{repository::Repository, server::middlewares::gh_event::GitHubEventContext};
 
 /// Extract repository information from GitHub event context
 pub fn extract_repository_info(ctx: &GitHubEventContext) -> Result<(Repository, i64)> {

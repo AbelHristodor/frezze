@@ -1,13 +1,17 @@
 use axum::response::{Response, Result};
 use tracing::warn;
 
-use crate::freezer::commands::{Command, CommandParser};
+use crate::{
+    freezer::commands::{Command, CommandParser},
+    repository,
+    server::{self, middlewares::gh_event},
+};
 
 use super::helpers;
 
 pub async fn handle_issue_comment(
-    ctx: &crate::server::middlewares::gh_event::GitHubEventContext,
-    state: &crate::server::AppState,
+    ctx: &gh_event::GitHubEventContext,
+    state: &server::AppState,
 ) -> Result<Response> {
     helpers::log_event_received("issue comment", &format!("{:?}", ctx.event.kind));
 
@@ -41,9 +45,9 @@ pub async fn handle_issue_comment(
 
 async fn handle_freeze_command(
     cmd: Command,
-    state: &crate::server::AppState,
+    state: &server::AppState,
     installation_id: i64,
-    repository: &crate::repository::Repository,
+    repository: &repository::Repository,
     author: &str,
     issue_number: u64,
 ) -> () {

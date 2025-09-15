@@ -16,6 +16,8 @@ pub async fn health() -> Result<Response> {
     Ok(axum::http::StatusCode::OK.into_response())
 }
 
+/// Webhook endpoint handler
+/// It is used to process events received from GitHub and act on them accordingly.
 pub async fn webhook(State(state): State<AppState>, req: Request) -> Result<Response> {
     info!("Received webhook event");
     let ctx = req
