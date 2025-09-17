@@ -6,14 +6,15 @@ use tracing_subscriber::EnvFilter;
 use crate::database::Database;
 use crate::freezer::manager::FreezeManager;
 use crate::github::Github;
-use crate::server::{Server, config::ServerConfig};
 
 mod cli;
 mod database;
 mod freezer;
 mod github;
+mod handlers;
 mod repository;
-mod server;
+
+use octofer::Octofer;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -47,19 +48,9 @@ async fn main() -> Result<(), anyhow::Error> {
                     gh_private_key_path,
                     gh_private_key_base64,
                 } => {
-                    let cfg = ServerConfig {
-                        address,
-                        port,
-                        database_url,
-                        gh_app_id,
-                        migrations_path,
-                        gh_private_key_path,
-                        gh_private_key_base64,
-                    };
-
                     // Start the server
                     info!("Starting the server...");
-                    start(cfg).await?
+                    start().await?
                 }
             }
         }
@@ -112,10 +103,23 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn start(cfg: ServerConfig) -> Result<(), anyhow::Error> {
+async fn start() -> Result<(), anyhow::Error> {
     let handle = tokio::spawn(async move {
-        let server = Server::new(&cfg).await.unwrap();
-        server.start().await.unwrap();
+        // Initialize tracing using configuration
+        let config = octofer::Config::from_env().unwrap_or_else(|_| octofer::Config::default());
+
+        // Initialize logging based on configuration
+        config.init_logging();
+
+        info!("Starting Octofer app: example-github-app");
+
+        // Create a new Octofer app with the configuration
+        let mut app = Octofer::new(config).await.unwrap_or_else(|_| {
+            info!("Failed to create app with config, using default");
+            Octofer::new_default()
+        });
+
+        app.on_issue_comment(handlers::issue_comment_handler).await;
     });
 
     // Wait for the server to finish starting
