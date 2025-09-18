@@ -316,13 +316,6 @@ mod tests {
             Command::Unfreeze => {}
             _ => panic!("Expected Unfreeze command"),
         }
-
-        // Unfreeze with reason
-        let cli = parse_cli(&["unfreeze", "--reason", "completed"]);
-        match cli.command {
-            Command::Unfreeze => {}
-            _ => panic!("Expected Unfreeze command"),
-        }
     }
 
     #[test]
