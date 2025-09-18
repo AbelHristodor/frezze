@@ -8,7 +8,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use octofer::github::GitHubClient;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use super::pr_refresh::PrRefreshService;
 
@@ -32,31 +32,26 @@ impl FreezeManager {
 
     pub async fn notify_comment_issue(
         &self,
-        installation_id: i64,
+        installation_id: u64,
         repository: &Repository,
         issue_nr: u64,
         msg: &str,
     ) {
         // Create response comment
-        match self
-            .github
-            .create_comment(
-                installation_id as u64,
-                repository.owner(),
-                repository.name(),
-                issue_nr,
-                msg,
-            )
-            .await
-        {
-            Ok(c) => debug!("Sent comment: {}", c.html_url),
-            Err(e) => error!("Cannot create comment: {:?}", e),
-        }
+        self.github
+            .with_installation_async(installation_id, async move |c| {
+                let repo = repository.clone();
+                c.issues(repo.owner, repo.name)
+                    .create_comment(issue_nr, msg)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Error: {:?}", e))
+            })
+            .await;
     }
 
     pub async fn freeze(
         &self,
-        installation_id: i64,
+        installation_id: u64,
         repository: &Repository,
         duration: Option<chrono::Duration>,
         reason: Option<String>,
@@ -87,7 +82,7 @@ impl FreezeManager {
 
     async fn handle_freeze(
         &self,
-        installation_id: i64,
+        installation_id: u64,
         repository: &Repository,
         duration: Option<chrono::Duration>,
         reason: Option<String>,
@@ -157,7 +152,7 @@ impl FreezeManager {
     pub async fn list_for_repo(
         &self,
         repository: &Repository,
-        installation_id: i64,
+        installation_id: u64,
         active: Option<bool>,
     ) -> Result<Vec<FreezeRecord>> {
         let conn = self
@@ -275,7 +270,7 @@ impl FreezeManager {
 
     pub async fn schedule_freeze(
         &self,
-        installation_id: i64,
+        installation_id: u64,
         repository: &Repository,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -302,7 +297,7 @@ impl FreezeManager {
 
     pub async fn unfreeze(
         &self,
-        installation_id: i64,
+        installation_id: u64,
         repository: &Repository,
         ended_by: String,
         issue_nr: u64,
@@ -325,7 +320,7 @@ impl FreezeManager {
     /// Unfreeze a repository
     async fn handle_unfreeze(
         &self,
-        installation_id: i64,
+        installation_id: u64,
         repository: &Repository,
         ended_by: String,
     ) -> Result<()> {

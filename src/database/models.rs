@@ -193,7 +193,7 @@ impl FreezeRecord {
     /// A new FreezeRecord with generated UUID, active status, and current timestamp.
     pub fn new(
         repository: String,
-        installation_id: i64,
+        installation_id: u64,
         started_at: DateTime<Utc>,
         expires_at: Option<DateTime<Utc>>,
         reason: Option<String>,
@@ -202,7 +202,7 @@ impl FreezeRecord {
         FreezeRecord {
             id: Uuid::new_v4(),
             repository,
-            installation_id,
+            installation_id: installation_id as i64,
             started_at,
             expires_at,
             ended_at: None,

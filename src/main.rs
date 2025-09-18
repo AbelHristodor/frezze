@@ -12,6 +12,12 @@ mod repository;
 
 use octofer::Octofer;
 
+use crate::database::Database;
+
+struct AppState {
+    database: Arc<Database>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     // Load environment variables from .env file
@@ -49,9 +55,20 @@ async fn start() -> Result<(), anyhow::Error> {
             Octofer::new_default()
         });
 
-        let a = freezer::manager::FreezeManager::new(db);
+        let db = Database::new(
+            "postgres://postgres:postgres@localhost:5432/postgres",
+            "migrations",
+            10,
+        )
+        .connect()
+        .await
+        .unwrap();
 
-        app.on_issue_comment(handlers::issue_comment_handler, Arc::new(a))
+        let state = AppState {
+            database: Arc::new(db),
+        };
+
+        app.on_issue_comment(handlers::issue_comment_handler, Arc::new(state))
             .await;
     });
 

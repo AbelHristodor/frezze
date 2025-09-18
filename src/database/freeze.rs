@@ -149,7 +149,7 @@ impl FreezeRecord {
     /// ```
     pub async fn list(
         pool: &PgPool,
-        installation_id: Option<i64>,
+        installation_id: Option<u64>,
         repository: Option<&str>,
         active: Option<bool>,
     ) -> Result<Vec<FreezeRecord>> {
@@ -177,7 +177,7 @@ impl FreezeRecord {
         let mut sql_query = sqlx::query(&query);
 
         if let Some(inst_id) = installation_id {
-            sql_query = sql_query.bind(inst_id);
+            sql_query = sql_query.bind(inst_id as i64);
         }
 
         if let Some(repo) = repository {
