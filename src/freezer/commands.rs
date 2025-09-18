@@ -33,15 +33,32 @@ use clap::{Parser, Subcommand};
 
 use chrono::{DateTime, Duration, Utc};
 use clap::Args;
+use tracing::error;
 
-pub fn parse(input: &str) -> anyhow::Result<Cli> {
+use crate::freezer::errors::ParsingError;
+
+pub fn parse(input: &str) -> Result<Cli, ParsingError> {
+    if input.is_empty() {
+        return Err(ParsingError::NotACommand);
+    }
+    if !input.starts_with("/") {
+        return Err(ParsingError::MalformedCommand);
+    }
+
     let input = input.trim_start_matches("/");
 
-    let args = shell_words::split(input).unwrap();
+    let args = shell_words::split(input).map_err(|e| {
+        error!("MalformedCommand: {:?}", e);
+        ParsingError::MalformedCommand
+    })?;
+
     let mut argv = vec!["bin".to_string()];
     argv.extend(args);
 
-    Cli::try_parse_from(argv).map_err(|e| anyhow::anyhow!("Error parsing command: {:?}", e))
+    Cli::try_parse_from(argv).map_err(|e| {
+        error!("MalformedCommand: {:?}", e);
+        ParsingError::MalformedCommand
+    })
 }
 
 #[derive(Parser)]
@@ -55,8 +72,8 @@ pub struct Cli {
 pub enum Command {
     Freeze(FreezeArgs),
     FreezeAll(FreezeArgs),
-    Unfreeze(UnfreezeArgs),
-    UnfreezeAll(UnfreezeArgs),
+    Unfreeze,
+    UnfreezeAll,
     Status(StatusArgs),
     ScheduleFreeze(ScheduleFreezeArgs),
 }
@@ -68,13 +85,6 @@ pub struct FreezeArgs {
     pub duration: Option<Duration>,
 
     /// Reason for freezing, optional
-    #[arg(long)]
-    pub reason: Option<String>,
-}
-
-#[derive(Args, Debug)]
-pub struct UnfreezeArgs {
-    /// Reason for unfreezing, optional
     #[arg(long)]
     pub reason: Option<String>,
 }
@@ -306,18 +316,14 @@ mod tests {
         // Basic unfreeze
         let cli = parse_cli(&["unfreeze"]);
         match cli.command {
-            Command::Unfreeze(args) => {
-                assert!(args.reason.is_none());
-            }
+            Command::Unfreeze => {}
             _ => panic!("Expected Unfreeze command"),
         }
 
         // Unfreeze with reason
         let cli = parse_cli(&["unfreeze", "--reason", "completed"]);
         match cli.command {
-            Command::Unfreeze(args) => {
-                assert_eq!(args.reason.unwrap(), "completed");
-            }
+            Command::Unfreeze => {}
             _ => panic!("Expected Unfreeze command"),
         }
     }

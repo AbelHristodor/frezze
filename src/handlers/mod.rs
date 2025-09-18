@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use octocrab::models::webhook_events::WebhookEventPayload;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     AppState,
-    freezer::{self, commands},
+    freezer::{self, commands, errors::ParsingError},
 };
 
 pub async fn issue_comment_handler(
@@ -20,7 +20,7 @@ pub async fn issue_comment_handler(
         Some(c) => c,
         None => panic!(),
     };
-    let install_id = context
+    let installation_id = context
         .installation_id
         .ok_or(anyhow::anyhow!("Cannot get installation_id"))?;
 
@@ -32,30 +32,44 @@ pub async fn issue_comment_handler(
         };
 
         let author = comment.comment.user.login.clone();
-        let issue_number = comment.issue.number;
+        let issue_nr = comment.issue.number;
         let repo = e
             .repository
-            .ok_or(anyhow::anyhow!("Cannot get repository from eveent"))?;
+            .ok_or(anyhow::anyhow!("Cannot get repository from event"))?;
 
         if let Some(body) = comment.comment.body.clone() {
             // Parse just the first line
-            let parser = commands::parse(body.lines().next().unwrap_or(&body))?;
+            let parser = match commands::parse(body.lines().next().unwrap_or(&body)) {
+                Ok(p) => p,
+                Err(e) => {
+                    if let ParsingError::NotACommand = e {
+                        info!("Not a command... skipping");
+                        return Ok(());
+                    } else {
+                        error!("Error parsing command: {e}");
+                        return Err(e.into());
+                    }
+                }
+            };
 
             match parser.command {
                 commands::Command::Freeze(freeze_args) => {
                     mng.freeze(
-                        install_id,
+                        installation_id,
                         &repo.into(),
                         freeze_args.duration,
                         freeze_args.reason,
                         author,
-                        issue_number,
+                        issue_nr,
                     )
                     .await;
                 }
                 commands::Command::FreezeAll(freeze_args) => todo!(),
-                commands::Command::Unfreeze(unfreeze_args) => todo!(),
-                commands::Command::UnfreezeAll(unfreeze_args) => todo!(),
+                commands::Command::Unfreeze => {
+                    mng.unfreeze(installation_id, &repo.into(), author, issue_nr)
+                        .await;
+                }
+                commands::Command::UnfreezeAll => todo!(),
                 commands::Command::Status(status_args) => todo!(),
                 commands::Command::ScheduleFreeze(schedule_freeze_args) => todo!(),
             }

@@ -38,7 +38,8 @@ impl FreezeManager {
         msg: &str,
     ) {
         // Create response comment
-        self.github
+        let error = self
+            .github
             .with_installation_async(installation_id, async move |c| {
                 let repo = repository.clone();
                 c.issues(repo.owner, repo.name)
@@ -46,7 +47,12 @@ impl FreezeManager {
                     .await
                     .map_err(|e| anyhow::anyhow!("Error: {:?}", e))
             })
-            .await;
+            .await
+            .err();
+
+        if let Some(err) = error {
+            error!("Unable do send comment: {:?}", err);
+        }
     }
 
     pub async fn freeze(
@@ -115,7 +121,7 @@ impl FreezeManager {
         match self
             .pr_refresh
             .refresh_repository_prs(
-                installation_id as u64,
+                installation_id,
                 repository.owner(),
                 repository.name(),
                 true, // Repository is now frozen
@@ -356,7 +362,7 @@ impl FreezeManager {
         match self
             .pr_refresh
             .refresh_repository_prs(
-                installation_id as u64,
+                installation_id,
                 repository.owner(),
                 repository.name(),
                 false, // Repository is now unfrozen
