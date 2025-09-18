@@ -3,11 +3,11 @@ use std::sync::Arc;
 use crate::{
     database::{Database, models::FreezeRecord},
     freezer::messages,
-    github::Github,
     repository::Repository,
 };
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
+use octofer::github::GitHubClient;
 use tracing::{debug, error, info, warn};
 
 use super::pr_refresh::PrRefreshService;
@@ -16,12 +16,12 @@ pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2)
 
 pub struct FreezeManager {
     pub db: Arc<Database>,
-    pub github: Arc<Github>,
+    pub github: Arc<GitHubClient>,
     pub pr_refresh: PrRefreshService,
 }
 
 impl FreezeManager {
-    pub fn new(db: Arc<Database>, github: Arc<Github>) -> Self {
+    pub fn new(db: Arc<Database>, github: Arc<GitHubClient>) -> Self {
         let pr_refresh = PrRefreshService::new(github.clone(), db.clone());
         FreezeManager {
             db,

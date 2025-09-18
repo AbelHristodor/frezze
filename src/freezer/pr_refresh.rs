@@ -7,6 +7,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
 use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus};
+use octofer::github::GitHubClient;
 use tracing::{error, info, warn};
 
 use crate::{
@@ -56,13 +57,13 @@ impl Default for RefreshConfig {
 
 /// Service for managing PR refresh operations
 pub struct PrRefreshService {
-    github: Arc<Github>,
+    github: Arc<GitHubClient>,
     db: Arc<Database>,
     config: RefreshConfig,
 }
 
 impl PrRefreshService {
-    pub fn new(github: Arc<Github>, db: Arc<Database>) -> Self {
+    pub fn new(github: Arc<GitHubClient>, db: Arc<Database>) -> Self {
         Self {
             github,
             db,
@@ -70,7 +71,11 @@ impl PrRefreshService {
         }
     }
 
-    pub fn with_config(github: Arc<Github>, db: Arc<Database>, config: RefreshConfig) -> Self {
+    pub fn with_config(
+        github: Arc<GitHubClient>,
+        db: Arc<Database>,
+        config: RefreshConfig,
+    ) -> Self {
         Self { github, db, config }
     }
 
@@ -288,7 +293,7 @@ impl PrRefreshService {
 
     /// Update a single PR with retry logic
     async fn update_pr_with_retry(
-        github: Arc<Github>,
+        github: Arc<GitHubClient>,
         installation_id: u64,
         owner: &str,
         repo: &str,
@@ -303,6 +308,7 @@ impl PrRefreshService {
                 .create_check_run(
                     owner,
                     repo,
+                    "frezze",
                     &pr.head_sha,
                     CheckRunStatus::Completed,
                     conclusion,
