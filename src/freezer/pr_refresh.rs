@@ -7,12 +7,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
 use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus};
+use octofer::github::{GitHubClient, models::checks::CheckRun};
 use tracing::{error, info, warn};
 
-use crate::{
-    database::{Database, models::FreezeRecord},
-    github::Github,
-};
+use crate::database::{Database, models::FreezeRecord};
 
 /// Information about a pull request needed for check run updates
 #[derive(Debug, Clone)]
@@ -56,13 +54,13 @@ impl Default for RefreshConfig {
 
 /// Service for managing PR refresh operations
 pub struct PrRefreshService {
-    github: Arc<Github>,
+    github: Arc<GitHubClient>,
     db: Arc<Database>,
     config: RefreshConfig,
 }
 
 impl PrRefreshService {
-    pub fn new(github: Arc<Github>, db: Arc<Database>) -> Self {
+    pub fn new(github: Arc<GitHubClient>, db: Arc<Database>) -> Self {
         Self {
             github,
             db,
@@ -70,7 +68,11 @@ impl PrRefreshService {
         }
     }
 
-    pub fn with_config(github: Arc<Github>, db: Arc<Database>, config: RefreshConfig) -> Self {
+    pub fn with_config(
+        github: Arc<GitHubClient>,
+        db: Arc<Database>,
+        config: RefreshConfig,
+    ) -> Self {
         Self { github, db, config }
     }
 
@@ -288,7 +290,7 @@ impl PrRefreshService {
 
     /// Update a single PR with retry logic
     async fn update_pr_with_retry(
-        github: Arc<Github>,
+        github: Arc<GitHubClient>,
         installation_id: u64,
         owner: &str,
         repo: &str,
@@ -299,16 +301,16 @@ impl PrRefreshService {
         let mut attempt = 0;
 
         while attempt <= config.max_retries {
-            match github
-                .create_check_run(
-                    owner,
-                    repo,
-                    &pr.head_sha,
-                    CheckRunStatus::Completed,
-                    conclusion,
-                    installation_id,
-                )
-                .await
+            match create_check_run(
+                &github,
+                owner,
+                repo,
+                &pr.head_sha,
+                CheckRunStatus::Completed,
+                conclusion,
+                installation_id,
+            )
+            .await
             {
                 Ok(_) => {
                     if attempt > 0 {
@@ -344,6 +346,32 @@ impl PrRefreshService {
             pr.number
         ))
     }
+}
+
+async fn create_check_run(
+    client: &GitHubClient,
+    owner: &str,
+    repo: &str,
+    head_sha: &str,
+    status: CheckRunStatus,
+    conclusion: CheckRunConclusion,
+    installation_id: u64,
+) -> Result<CheckRun> {
+    let result = client
+        .app_client()
+        .installation(installation_id.into())?
+        .checks(owner, repo)
+        .create_check_run("frezze", head_sha)
+        .status(status)
+        .conclusion(conclusion)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Failed to create check run: {:?}", e);
+            anyhow!("Failed to create check run: {}", e)
+        })?;
+
+    Ok(result)
 }
 
 #[cfg(test)]
