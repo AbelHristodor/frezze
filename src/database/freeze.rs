@@ -246,6 +246,7 @@ impl FreezeRecord {
         ended_by: Option<String>,
     ) -> Result<Option<FreezeRecord>> {
         let status_str = match status {
+            FreezeStatus::Scheduled => "scheduled",
             FreezeStatus::Active => "active",
             FreezeStatus::Expired => "expired",
             FreezeStatus::Ended => "ended",

@@ -62,6 +62,8 @@ impl Display for Role {
 /// Tracks the lifecycle of a freeze from creation to completion.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FreezeStatus {
+    /// Freeze is scheduled for future activation
+    Scheduled,
     /// Freeze is currently active and blocking operations
     Active,
     /// Freeze has expired based on its duration but not manually ended
@@ -74,6 +76,7 @@ impl Display for FreezeStatus {
     /// Formats the FreezeStatus for display as a lowercase string.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            FreezeStatus::Scheduled => write!(f, "scheduled"),
             FreezeStatus::Active => write!(f, "active"),
             FreezeStatus::Expired => write!(f, "expired"),
             FreezeStatus::Ended => write!(f, "ended"),
@@ -93,6 +96,7 @@ impl From<&str> for FreezeStatus {
     /// Panics if the status string is not recognized.
     fn from(status: &str) -> Self {
         match status {
+            "scheduled" => FreezeStatus::Scheduled,
             "active" => FreezeStatus::Active,
             "expired" => FreezeStatus::Expired,
             "ended" => FreezeStatus::Ended,
@@ -210,6 +214,45 @@ impl FreezeRecord {
             initiated_by,
             ended_by: None,
             status: FreezeStatus::Active, // default to active
+            created_at: Utc::now(),
+        }
+    }
+
+    /// Creates a new scheduled FreezeRecord.
+    ///
+    /// Similar to `new()` but creates a record with `Scheduled` status for future freezes.
+    ///
+    /// # Arguments
+    ///
+    /// * `repository` - Repository name in "owner/repo" format
+    /// * `installation_id` - GitHub App installation ID
+    /// * `started_at` - When the freeze should become active
+    /// * `expires_at` - Optional expiration time
+    /// * `reason` - Optional reason for the freeze
+    /// * `initiated_by` - GitHub username who initiated the freeze
+    ///
+    /// # Returns
+    ///
+    /// A new FreezeRecord with generated UUID, scheduled status, and current timestamp.
+    pub fn new_scheduled(
+        repository: String,
+        installation_id: u64,
+        started_at: DateTime<Utc>,
+        expires_at: Option<DateTime<Utc>>,
+        reason: Option<String>,
+        initiated_by: String,
+    ) -> FreezeRecord {
+        FreezeRecord {
+            id: Uuid::new_v4(),
+            repository,
+            installation_id: installation_id as i64,
+            started_at,
+            expires_at,
+            ended_at: None,
+            reason,
+            initiated_by,
+            ended_by: None,
+            status: FreezeStatus::Scheduled,
             created_at: Utc::now(),
         }
     }

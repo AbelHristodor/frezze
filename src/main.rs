@@ -8,6 +8,7 @@ mod freezer;
 mod github;
 mod handlers;
 mod repository;
+mod worker;
 
 use octofer::Octofer;
 
@@ -55,6 +56,15 @@ async fn start() -> Result<(), anyhow::Error> {
         let state = AppState {
             database: Arc::new(db),
         };
+
+        // Start the freeze scheduler worker
+        let worker_db = state.database.clone();
+        let worker_github = app.github_client(); // Assuming we can get the GitHub client from the app
+        let worker = worker::FreezeSchedulerWorker::new(worker_db, worker_github);
+        
+        tokio::spawn(async move {
+            worker.start().await;
+        });
 
         app.on_issue_comment(handlers::issue_comment_handler, Arc::new(state))
             .await;
