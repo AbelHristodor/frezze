@@ -38,11 +38,8 @@ use tracing::error;
 use crate::freezer::errors::ParsingError;
 
 pub fn parse(input: &str) -> Result<Cli, ParsingError> {
-    if input.is_empty() {
+    if input.is_empty() || !input.starts_with("/") {
         return Err(ParsingError::NotACommand);
-    }
-    if !input.starts_with("/") {
-        return Err(ParsingError::MalformedCommand);
     }
 
     let input = input.trim_start_matches("/");
