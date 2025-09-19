@@ -5,7 +5,7 @@ use tracing::{error, info};
 
 use crate::{
     AppState,
-    freezer::{self, commands, errors::ParsingError},
+    freezer::{self, commands, errors::ParsingError, messages},
     permissions::{PermissionService, PermissionResult},
 };
 
@@ -54,44 +54,46 @@ pub async fn issue_comment_handler(
             };
 
             // Check permissions before executing command
-            let permission_service = PermissionService::with_config(
-                extra.database.clone(),
-                extra.user_config.clone(),
-            );
-            let repository: crate::repository::Repository = repo.clone().into();
-            let repo_name = repository.full_name();
-            
-            match permission_service.check_permission(
-                installation_id as i64,
-                &repo_name,
-                &author,
-                &parser.command,
-            ).await {
-                Ok(PermissionResult::Allowed) => {
-                    // Permission granted, proceed with command execution
+            if let Some(ref user_config) = extra.user_config {
+                let permission_service = PermissionService::new(user_config.clone());
+                let repository: crate::repository::Repository = repo.clone().into();
+                let repo_name = repository.full_name();
+                
+                match permission_service.check_permission(
+                    installation_id as i64,
+                    &repo_name,
+                    &author,
+                    &parser.command,
+                ).await {
+                    Ok(PermissionResult::Allowed) => {
+                        // Permission granted, proceed with command execution
+                    }
+                    Ok(PermissionResult::Denied(reason)) => {
+                        let error_msg = messages::permission_denied(&author, &reason);
+                        mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        error!("Error checking permissions for user {}: {}", author, e);
+                        let error_msg = messages::permission_check_failed(&author, &e.to_string());
+                        mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                        return Ok(());
+                    }
                 }
-                Ok(PermissionResult::Denied(reason)) => {
-                    let error_msg = format!(
-                        "## ❌ Permission Denied\n\n\
-                        🚫 **Access denied for user `{}`**\n\n\
-                        **Reason**: {}\n\n\
-                        *Contact your repository administrator to request access.*",
-                        author, reason
-                    );
-                    mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
-                    return Ok(());
-                }
-                Err(e) => {
-                    error!("Error checking permissions for user {}: {}", author, e);
-                    let error_msg = format!(
-                        "## ❌ Permission Check Failed\n\n\
-                        🚫 **Unable to verify permissions for user `{}`**\n\n\
-                        **Error**: {}\n\n\
-                        *Please try again later or contact support.*",
-                        author, e
-                    );
-                    mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
-                    return Ok(());
+            } else {
+                // No user config provided - deny all commands except status
+                match parser.command {
+                    commands::Command::Status(_) => {
+                        // Status is always allowed when no config is provided
+                    }
+                    _ => {
+                        let error_msg = messages::permission_denied(
+                            &author, 
+                            "No permission configuration file loaded. Contact your administrator."
+                        );
+                        mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                        return Ok(());
+                    }
                 }
             }
 

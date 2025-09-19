@@ -8,7 +8,7 @@ use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 use anyhow::{Result, anyhow};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::database::models::Role;
 

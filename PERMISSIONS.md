@@ -1,6 +1,6 @@
 # Permission System
 
-Frezze implements a comprehensive permission system to control which users can execute which freeze commands. The system supports both YAML configuration files and database storage for maximum flexibility.
+Frezze implements a comprehensive permission system to control which users can execute freeze commands. The system uses **YAML configuration files as the single source of truth** for user permissions, providing a simple and maintainable approach to access control.
 
 ## Role-Based Access Control
 
@@ -23,9 +23,7 @@ Frezze implements a comprehensive permission system to control which users can e
 
 *Maintainer permissions depend on the `can_freeze` and `can_unfreeze` flags in their configuration.
 
-## Configuration Methods
-
-### 1. YAML Configuration (Recommended)
+## YAML Configuration (Single Source of Truth)
 
 Create a YAML file with user permissions:
 
@@ -59,10 +57,6 @@ installations:
             can_unfreeze: true
 ```
 
-### 2. Database Storage
-
-User permissions can also be stored directly in the PostgreSQL database using the `permission_records` table.
-
 ## Permission Priority
 
 The system checks permissions in this order (highest to lowest priority):
@@ -76,6 +70,8 @@ The system checks permissions in this order (highest to lowest priority):
 
 ### Server Startup
 
+The server **requires a YAML configuration file** to operate with permission checking:
+
 ```bash
 # Start server with YAML configuration
 ./frezze server start --user-config permissions.yaml
@@ -85,23 +81,11 @@ export USER_PERMISSIONS_CONFIG=permissions.yaml
 ./frezze server start
 ```
 
+**Note**: If no configuration file is provided, all commands except `/freeze-status` will be denied.
+
 ### Example Configuration
 
 See `permissions.example.yaml` for a complete example with documentation.
-
-### Database Population
-
-You can populate the database from a YAML configuration:
-
-```rust
-use frezze::permissions::PermissionPopulator;
-use frezze::config::UserPermissionsConfig;
-
-let config = UserPermissionsConfig::load_from_file("permissions.yaml")?;
-let populator = PermissionPopulator::new(database);
-let count = populator.populate_from_config(&config, true).await?;
-println!("Populated {} permission records", count);
-```
 
 ## Error Handling
 
@@ -124,12 +108,28 @@ Example denied access message:
 
 ## Security Considerations
 
-- Permissions are checked before every command execution
-- Users without any configured permissions are denied by default
-- Admin roles should be granted sparingly
-- The system supports audit logging for compliance requirements
-- Configuration files should be stored securely and version controlled
+- **Default deny policy** - Users without any configured permissions are blocked by default
+- **Configuration validation** - Invalid YAML or role configurations are rejected at startup
+- **Admin roles should be granted sparingly** - Full administrative access
+- **Configuration files should be stored securely** and version controlled
+- **Audit logging** - All permission checks are logged for compliance requirements
 
-## Migration from Database
+## Configuration Management
 
-If you're already using database-stored permissions, you can continue using them. The YAML configuration system is complementary and takes priority when both are available.
+### Best Practices
+
+1. **Version control** your permission configuration files
+2. **Review changes** to permissions through pull requests
+3. **Use descriptive user names** that match GitHub usernames exactly
+4. **Test configuration** by loading it before deployment
+5. **Monitor logs** for permission denied attempts
+
+### Configuration Validation
+
+The system validates configuration files on startup and will fail if:
+- YAML syntax is invalid
+- Required fields are missing
+- Installation IDs don't match between keys and values
+- User roles are not recognized (admin, maintainer, contributor)
+
+This ensures configuration errors are caught early rather than at runtime.

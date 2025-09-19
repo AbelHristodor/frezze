@@ -1,52 +1,105 @@
 //! Permission checking and authorization module.
 //!
 //! This module provides functionality to check user permissions for executing
-//! freeze commands based on their roles and repository-specific permissions.
+//! freeze commands based on their roles and repository-specific permissions loaded
+//! from YAML configuration files.
+//!
+//! The permission system operates on a role-based access control model with three roles:
+//! - **Admin**: Full access to all freeze operations
+//! - **Maintainer**: Access to freeze/unfreeze operations based on permission flags
+//! - **Contributor**: Read-only access (status commands only)
+//!
+//! # Examples
+//!
+//! ```rust
+//! use std::sync::Arc;
+//! use frezze::permissions::{PermissionService, PermissionResult};
+//! use frezze::config::UserPermissionsConfig;
+//! use frezze::freezer::commands::Command;
+//!
+//! # async fn example() -> anyhow::Result<()> {
+//! let config = UserPermissionsConfig::load_from_file("permissions.yaml")?;
+//! let service = PermissionService::new(Arc::new(config));
+//!
+//! let result = service.check_permission(
+//!     12345,
+//!     "owner/repo",
+//!     "username",
+//!     &Command::Freeze(Default::default()),
+//! ).await?;
+//!
+//! match result {
+//!     PermissionResult::Allowed => println!("Permission granted"),
+//!     PermissionResult::Denied(reason) => println!("Permission denied: {}", reason),
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use std::sync::Arc;
 
 use crate::{
-    database::{Database, models::{PermissionRecord, Role}},
+    config::{UserPermissionsConfig, UserPermissions},
+    database::models::Role,
     freezer::commands::Command,
-    config::UserPermissionsConfig,
 };
 use anyhow::Result;
-use tracing::{debug, warn, info};
+use tracing::{debug, warn};
 
 /// Service for checking user permissions for command execution.
+///
+/// This service uses YAML configuration as the single source of truth for user permissions.
+/// It evaluates permissions based on a hierarchical system: repository-specific permissions
+/// take precedence over global permissions, which take precedence over default permissions.
 #[derive(Debug, Clone)]
 pub struct PermissionService {
-    database: Arc<Database>,
-    user_config: Option<Arc<UserPermissionsConfig>>,
+    /// User permissions configuration loaded from YAML
+    user_config: Arc<UserPermissionsConfig>,
 }
 
-/// Result of a permission check.
+/// Result of a permission check operation.
+///
+/// This enum represents the outcome of checking whether a user has permission
+/// to execute a specific command.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PermissionResult {
-    /// Permission granted
+    /// Permission is granted - the user can execute the command
     Allowed,
-    /// Permission denied with reason
+    /// Permission is denied with a specific reason
     Denied(String),
 }
 
 impl PermissionService {
-    /// Creates a new permission service.
-    pub fn new(database: Arc<Database>) -> Self {
-        Self { 
-            database,
-            user_config: None,
-        }
+    /// Creates a new permission service with the given configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_config` - The user permissions configuration loaded from YAML
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::sync::Arc;
+    /// use frezze::permissions::PermissionService;
+    /// use frezze::config::UserPermissionsConfig;
+    ///
+    /// # fn example() -> anyhow::Result<()> {
+    /// let config = UserPermissionsConfig::load_from_file("permissions.yaml")?;
+    /// let service = PermissionService::new(Arc::new(config));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new(user_config: Arc<UserPermissionsConfig>) -> Self {
+        Self { user_config }
     }
 
-    /// Creates a new permission service with user configuration.
-    pub fn with_config(database: Arc<Database>, user_config: Option<Arc<UserPermissionsConfig>>) -> Self {
-        Self { 
-            database,
-            user_config,
-        }
-    }
-
-    /// Checks if a user has permission to execute a command.
+    /// Checks if a user has permission to execute a specific command.
+    ///
+    /// This method evaluates permissions using the hierarchical system:
+    /// 1. Repository-specific user permissions (highest priority)
+    /// 2. Global user permissions for the installation
+    /// 3. Default permissions for the installation
+    /// 4. Denied (if no configuration found)
     ///
     /// # Arguments
     ///
@@ -57,8 +110,32 @@ impl PermissionService {
     ///
     /// # Returns
     ///
-    /// Returns `PermissionResult::Allowed` if permission is granted,
-    /// or `PermissionResult::Denied` with a reason if denied.
+    /// Returns `Ok(PermissionResult::Allowed)` if permission is granted,
+    /// `Ok(PermissionResult::Denied(reason))` if denied, or an error if
+    /// the permission check fails due to configuration issues.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use std::sync::Arc;
+    /// # use frezze::permissions::{PermissionService, PermissionResult};
+    /// # use frezze::config::UserPermissionsConfig;
+    /// # use frezze::freezer::commands::Command;
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = UserPermissionsConfig::load_from_file("permissions.yaml")?;
+    /// let service = PermissionService::new(Arc::new(config));
+    ///
+    /// let result = service.check_permission(
+    ///     12345,
+    ///     "owner/repo",
+    ///     "admin_user",
+    ///     &Command::Freeze(Default::default()),
+    /// ).await?;
+    ///
+    /// assert_eq!(result, PermissionResult::Allowed);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn check_permission(
         &self,
         installation_id: i64,
@@ -71,42 +148,13 @@ impl PermissionService {
             user_login, command, repository
         );
 
-        // First, try to get permissions from configuration file
-        if let Some(ref config) = self.user_config {
-            if let Some(user_perms) = config.get_user_permissions(installation_id, repository, user_login) {
-                debug!("Found user permissions in configuration file for user {}", user_login);
-                
-                // Create a temporary permission record for checking
-                let permission_record = PermissionRecord {
-                    id: uuid::Uuid::new_v4(),
-                    installation_id,
-                    repository: repository.to_string(),
-                    user_login: user_login.to_string(),
-                    role: user_perms.to_role()?,
-                    can_freeze: user_perms.can_freeze,
-                    can_unfreeze: user_perms.can_unfreeze,
-                    can_emergency_override: user_perms.can_emergency_override,
-                    created_at: chrono::Utc::now(),
-                };
-
-                return Ok(self.check_command_permission(&permission_record, command));
-            }
-            
-            debug!("User {} not found in configuration file, falling back to database", user_login);
-        }
-
-        // Fall back to database lookup
-        let permission_record = match PermissionRecord::get_by_user_and_repo(
-            self.database.pool(),
-            installation_id,
-            repository,
-            user_login,
-        ).await? {
-            Some(record) => record,
+        // Get user permissions from configuration
+        let user_permissions = match self.user_config.get_user_permissions(installation_id, repository, user_login) {
+            Some(perms) => perms,
             None => {
                 warn!(
-                    "No permission record found for user {} in repository {}",
-                    user_login, repository
+                    "No permission configuration found for user {} in repository {} (installation {})",
+                    user_login, repository, installation_id
                 );
                 return Ok(PermissionResult::Denied(
                     "No permissions configured for this user in this repository".to_string()
@@ -114,258 +162,201 @@ impl PermissionService {
             }
         };
 
-        Ok(self.check_command_permission(&permission_record, command))
+        debug!("Found permissions for user {}: {:?}", user_login, user_permissions);
+
+        // Check command permission based on user role and capabilities
+        let result = self.check_command_permission(&user_permissions, command)?;
+
+        debug!(
+            "Permission check result for user {} on command {:?}: {:?}",
+            user_login, command, result
+        );
+
+        Ok(result)
     }
 
-    /// Checks if a permission record allows a specific command.
-    fn check_command_permission(&self, permission_record: &PermissionRecord, command: &Command) -> PermissionResult {
+    /// Checks if the given user permissions allow execution of a specific command.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_permissions` - The user's permission configuration
+    /// * `command` - The command to check permission for
+    ///
+    /// # Returns
+    ///
+    /// Returns the permission check result based on the user's role and command type.
+    fn check_command_permission(&self, user_permissions: &UserPermissions, command: &Command) -> Result<PermissionResult> {
+        let role = user_permissions.to_role()?;
+
         let result = match command {
             Command::Freeze(_) => {
-                if self.can_freeze(permission_record) {
+                if self.can_freeze(&role, user_permissions) {
                     PermissionResult::Allowed
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have freeze permissions",
-                        permission_record.role
+                        role
                     ))
                 }
             }
             Command::FreezeAll(_) => {
-                if self.can_freeze_all(permission_record) {
+                if self.can_freeze_all(&role, user_permissions) {
                     PermissionResult::Allowed
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have freeze-all permissions",
-                        permission_record.role
+                        role
                     ))
                 }
             }
             Command::Unfreeze => {
-                if self.can_unfreeze(permission_record) {
+                if self.can_unfreeze(&role, user_permissions) {
                     PermissionResult::Allowed
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have unfreeze permissions",
-                        permission_record.role
+                        role
                     ))
                 }
             }
             Command::UnfreezeAll => {
-                if self.can_unfreeze_all(permission_record) {
+                if self.can_unfreeze_all(&role, user_permissions) {
                     PermissionResult::Allowed
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have unfreeze-all permissions",
-                        permission_record.role
+                        role
                     ))
                 }
             }
             Command::Status(_) => {
-                if self.can_view_status(permission_record) {
+                if self.can_view_status(&role) {
                     PermissionResult::Allowed
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have status viewing permissions",
-                        permission_record.role
+                        role
                     ))
                 }
             }
             Command::ScheduleFreeze(_) => {
-                if self.can_schedule_freeze(permission_record) {
+                if self.can_schedule_freeze(&role, user_permissions) {
                     PermissionResult::Allowed
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have schedule freeze permissions",
-                        permission_record.role
+                        role
                     ))
                 }
             }
         };
 
-        debug!(
-            "Permission check result for user {} on command {:?}: {:?}",
-            permission_record.user_login, command, result
-        );
-
-        result
+        Ok(result)
     }
 
-    /// Checks if user can freeze individual repositories.
-    fn can_freeze(&self, permission: &PermissionRecord) -> bool {
-        match permission.role {
+    /// Checks if the user can freeze individual repositories.
+    ///
+    /// # Arguments
+    ///
+    /// * `role` - The user's role
+    /// * `permissions` - The user's specific permissions
+    ///
+    /// # Returns
+    ///
+    /// `true` if the user can freeze repositories, `false` otherwise.
+    fn can_freeze(&self, role: &Role, permissions: &UserPermissions) -> bool {
+        match role {
             Role::Admin => true,
-            Role::Maintainer => permission.can_freeze,
+            Role::Maintainer => permissions.can_freeze,
             Role::Contributor => false,
         }
     }
 
-    /// Checks if user can freeze all repositories.
-    fn can_freeze_all(&self, permission: &PermissionRecord) -> bool {
-        match permission.role {
+    /// Checks if the user can freeze all repositories.
+    ///
+    /// # Arguments
+    ///
+    /// * `role` - The user's role
+    /// * `permissions` - The user's specific permissions
+    ///
+    /// # Returns
+    ///
+    /// `true` if the user can freeze all repositories, `false` otherwise.
+    fn can_freeze_all(&self, role: &Role, permissions: &UserPermissions) -> bool {
+        match role {
             Role::Admin => true,
-            Role::Maintainer => permission.can_freeze,
+            Role::Maintainer => permissions.can_freeze,
             Role::Contributor => false,
         }
     }
 
-    /// Checks if user can unfreeze individual repositories.
-    fn can_unfreeze(&self, permission: &PermissionRecord) -> bool {
-        match permission.role {
+    /// Checks if the user can unfreeze individual repositories.
+    ///
+    /// # Arguments
+    ///
+    /// * `role` - The user's role
+    /// * `permissions` - The user's specific permissions
+    ///
+    /// # Returns
+    ///
+    /// `true` if the user can unfreeze repositories, `false` otherwise.
+    fn can_unfreeze(&self, role: &Role, permissions: &UserPermissions) -> bool {
+        match role {
             Role::Admin => true,
-            Role::Maintainer => permission.can_unfreeze,
+            Role::Maintainer => permissions.can_unfreeze,
             Role::Contributor => false,
         }
     }
 
-    /// Checks if user can unfreeze all repositories.
-    fn can_unfreeze_all(&self, permission: &PermissionRecord) -> bool {
-        match permission.role {
+    /// Checks if the user can unfreeze all repositories.
+    ///
+    /// # Arguments
+    ///
+    /// * `role` - The user's role
+    /// * `permissions` - The user's specific permissions
+    ///
+    /// # Returns
+    ///
+    /// `true` if the user can unfreeze all repositories, `false` otherwise.
+    fn can_unfreeze_all(&self, role: &Role, permissions: &UserPermissions) -> bool {
+        match role {
             Role::Admin => true,
-            Role::Maintainer => permission.can_unfreeze,
+            Role::Maintainer => permissions.can_unfreeze,
             Role::Contributor => false,
         }
     }
 
-    /// Checks if user can view status.
-    fn can_view_status(&self, _permission: &PermissionRecord) -> bool {
+    /// Checks if the user can view status.
+    ///
+    /// All roles can view status information.
+    ///
+    /// # Arguments
+    ///
+    /// * `role` - The user's role (unused but kept for consistency)
+    ///
+    /// # Returns
+    ///
+    /// Always returns `true` as all users can view status.
+    fn can_view_status(&self, _role: &Role) -> bool {
         // All roles can view status
         true
     }
 
-    /// Checks if user can schedule freezes.
-    fn can_schedule_freeze(&self, permission: &PermissionRecord) -> bool {
-        match permission.role {
-            Role::Admin => true,
-            Role::Maintainer => permission.can_freeze,
-            Role::Contributor => false,
-        }
-    }
-}
-
-/// Service for populating database with user permissions from configuration.
-pub struct PermissionPopulator {
-    database: Arc<Database>,
-}
-
-impl PermissionPopulator {
-    /// Creates a new permission populator.
-    pub fn new(database: Arc<Database>) -> Self {
-        Self { database }
-    }
-
-    /// Populates database with permissions from configuration.
-    ///
-    /// This will create PermissionRecord entries in the database for all users
-    /// defined in the configuration file. Existing records will be updated.
+    /// Checks if the user can schedule freezes.
     ///
     /// # Arguments
     ///
-    /// * `config` - User permissions configuration loaded from YAML
-    /// * `overwrite_existing` - Whether to overwrite existing permission records
+    /// * `role` - The user's role
+    /// * `permissions` - The user's specific permissions
     ///
     /// # Returns
     ///
-    /// Returns the number of permission records created or updated.
-    pub async fn populate_from_config(
-        &self,
-        config: &UserPermissionsConfig,
-        overwrite_existing: bool,
-    ) -> Result<usize> {
-        let mut records_processed = 0;
-
-        for (_install_key, installation) in &config.installations {
-            let installation_id: i64 = installation.installation_id.parse()?;
-            
-            info!("Processing installation {}", installation_id);
-
-            // Process global users
-            for (user_login, user_perms) in &installation.global_users {
-                // Apply to all repositories in this installation, or create a global entry
-                let record = PermissionRecord::new(
-                    installation_id,
-                    "*".to_string(), // Use "*" to indicate global permissions
-                    user_login.clone(),
-                    user_perms.to_role()?,
-                    user_perms.can_freeze,
-                    user_perms.can_unfreeze,
-                    user_perms.can_emergency_override,
-                );
-
-                if self.create_or_update_permission(&record, overwrite_existing).await? {
-                    records_processed += 1;
-                }
-            }
-
-            // Process repository-specific users
-            for (_repo_key, repo_config) in &installation.repositories {
-                for (user_login, user_perms) in &repo_config.users {
-                    let record = PermissionRecord::new(
-                        installation_id,
-                        repo_config.repository.clone(),
-                        user_login.clone(),
-                        user_perms.to_role()?,
-                        user_perms.can_freeze,
-                        user_perms.can_unfreeze,
-                        user_perms.can_emergency_override,
-                    );
-
-                    if self.create_or_update_permission(&record, overwrite_existing).await? {
-                        records_processed += 1;
-                    }
-                }
-            }
-        }
-
-        info!("Processed {} permission records", records_processed);
-        Ok(records_processed)
-    }
-
-    /// Creates or updates a permission record in the database.
-    async fn create_or_update_permission(
-        &self,
-        record: &PermissionRecord,
-        overwrite_existing: bool,
-    ) -> Result<bool> {
-        // Check if record already exists
-        let existing = PermissionRecord::get_by_user_and_repo(
-            self.database.pool(),
-            record.installation_id,
-            &record.repository,
-            &record.user_login,
-        ).await?;
-
-        match existing {
-            Some(existing_record) => {
-                if overwrite_existing {
-                    // Update the existing record
-                    info!(
-                        "Updating permission for user {} in repository {} (installation {})",
-                        record.user_login, record.repository, record.installation_id
-                    );
-                    
-                    // Delete the old record and create new one (simpler than update)
-                    PermissionRecord::delete(self.database.pool(), existing_record.id).await?;
-                    PermissionRecord::create(self.database.pool(), record).await?;
-                    
-                    Ok(true)
-                } else {
-                    warn!(
-                        "Permission record already exists for user {} in repository {} (installation {}), skipping",
-                        record.user_login, record.repository, record.installation_id
-                    );
-                    Ok(false)
-                }
-            }
-            None => {
-                // Create new record
-                info!(
-                    "Creating permission for user {} in repository {} (installation {})",
-                    record.user_login, record.repository, record.installation_id
-                );
-                
-                PermissionRecord::create(self.database.pool(), record).await?;
-                Ok(true)
-            }
+    /// `true` if the user can schedule freezes, `false` otherwise.
+    fn can_schedule_freeze(&self, role: &Role, permissions: &UserPermissions) -> bool {
+        match role {
+            Role::Admin => true,
+            Role::Maintainer => permissions.can_freeze,
+            Role::Contributor => false,
         }
     }
 }
@@ -373,72 +364,73 @@ impl PermissionPopulator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::models::PermissionRecord;
-    use chrono::Utc;
-    use uuid::Uuid;
+    use crate::config::{UserPermissions, UserPermissionsConfig};
+    use tempfile::NamedTempFile;
 
-    fn create_test_permission(role: Role, can_freeze: bool, can_unfreeze: bool) -> PermissionRecord {
-        PermissionRecord {
-            id: Uuid::new_v4(),
-            installation_id: 123,
-            repository: "owner/repo".to_string(),
-            user_login: "testuser".to_string(),
-            role,
+    fn create_test_permissions(role: &str, can_freeze: bool, can_unfreeze: bool) -> UserPermissions {
+        UserPermissions {
+            role: role.to_string(),
             can_freeze,
             can_unfreeze,
             can_emergency_override: false,
-            created_at: Utc::now(),
         }
     }
 
     #[test]
     fn test_admin_permissions() {
-        let service = PermissionService::new(Arc::new(Database::new_mock()));
-        let permission = create_test_permission(Role::Admin, false, false);
+        let service = create_test_service();
+        let permissions = create_test_permissions("admin", false, false);
 
         // Admin should have all permissions regardless of flags
-        assert!(service.can_freeze(&permission));
-        assert!(service.can_freeze_all(&permission));
-        assert!(service.can_unfreeze(&permission));
-        assert!(service.can_unfreeze_all(&permission));
-        assert!(service.can_view_status(&permission));
-        assert!(service.can_schedule_freeze(&permission));
+        assert!(service.can_freeze(&Role::Admin, &permissions));
+        assert!(service.can_freeze_all(&Role::Admin, &permissions));
+        assert!(service.can_unfreeze(&Role::Admin, &permissions));
+        assert!(service.can_unfreeze_all(&Role::Admin, &permissions));
+        assert!(service.can_view_status(&Role::Admin));
+        assert!(service.can_schedule_freeze(&Role::Admin, &permissions));
     }
 
     #[test]
     fn test_maintainer_permissions() {
-        let service = PermissionService::new(Arc::new(Database::new_mock()));
+        let service = create_test_service();
         
         // Maintainer with freeze permissions
-        let permission_with_freeze = create_test_permission(Role::Maintainer, true, true);
-        assert!(service.can_freeze(&permission_with_freeze));
-        assert!(service.can_freeze_all(&permission_with_freeze));
-        assert!(service.can_unfreeze(&permission_with_freeze));
-        assert!(service.can_unfreeze_all(&permission_with_freeze));
-        assert!(service.can_view_status(&permission_with_freeze));
-        assert!(service.can_schedule_freeze(&permission_with_freeze));
+        let permissions_with_freeze = create_test_permissions("maintainer", true, true);
+        assert!(service.can_freeze(&Role::Maintainer, &permissions_with_freeze));
+        assert!(service.can_freeze_all(&Role::Maintainer, &permissions_with_freeze));
+        assert!(service.can_unfreeze(&Role::Maintainer, &permissions_with_freeze));
+        assert!(service.can_unfreeze_all(&Role::Maintainer, &permissions_with_freeze));
+        assert!(service.can_view_status(&Role::Maintainer));
+        assert!(service.can_schedule_freeze(&Role::Maintainer, &permissions_with_freeze));
 
         // Maintainer without freeze permissions
-        let permission_without_freeze = create_test_permission(Role::Maintainer, false, false);
-        assert!(!service.can_freeze(&permission_without_freeze));
-        assert!(!service.can_freeze_all(&permission_without_freeze));
-        assert!(!service.can_unfreeze(&permission_without_freeze));
-        assert!(!service.can_unfreeze_all(&permission_without_freeze));
-        assert!(service.can_view_status(&permission_without_freeze));
-        assert!(!service.can_schedule_freeze(&permission_without_freeze));
+        let permissions_without_freeze = create_test_permissions("maintainer", false, false);
+        assert!(!service.can_freeze(&Role::Maintainer, &permissions_without_freeze));
+        assert!(!service.can_freeze_all(&Role::Maintainer, &permissions_without_freeze));
+        assert!(!service.can_unfreeze(&Role::Maintainer, &permissions_without_freeze));
+        assert!(!service.can_unfreeze_all(&Role::Maintainer, &permissions_without_freeze));
+        assert!(service.can_view_status(&Role::Maintainer));
+        assert!(!service.can_schedule_freeze(&Role::Maintainer, &permissions_without_freeze));
     }
 
     #[test]
     fn test_contributor_permissions() {
-        let service = PermissionService::new(Arc::new(Database::new_mock()));
-        let permission = create_test_permission(Role::Contributor, true, true);
+        let service = create_test_service();
+        let permissions = create_test_permissions("contributor", true, true);
 
         // Contributor should only have status permissions
-        assert!(!service.can_freeze(&permission));
-        assert!(!service.can_freeze_all(&permission));
-        assert!(!service.can_unfreeze(&permission));
-        assert!(!service.can_unfreeze_all(&permission));
-        assert!(service.can_view_status(&permission));
-        assert!(!service.can_schedule_freeze(&permission));
+        assert!(!service.can_freeze(&Role::Contributor, &permissions));
+        assert!(!service.can_freeze_all(&Role::Contributor, &permissions));
+        assert!(!service.can_unfreeze(&Role::Contributor, &permissions));
+        assert!(!service.can_unfreeze_all(&Role::Contributor, &permissions));
+        assert!(service.can_view_status(&Role::Contributor));
+        assert!(!service.can_schedule_freeze(&Role::Contributor, &permissions));
+    }
+
+    fn create_test_service() -> PermissionService {
+        let temp_file = NamedTempFile::new().unwrap();
+        UserPermissionsConfig::create_example_config(temp_file.path()).unwrap();
+        let config = UserPermissionsConfig::load_from_file(temp_file.path()).unwrap();
+        PermissionService::new(Arc::new(config))
     }
 }
