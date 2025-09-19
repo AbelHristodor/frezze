@@ -11,7 +11,7 @@ use crate::{
     config::UserPermissionsConfig,
 };
 use anyhow::Result;
-use tracing::{debug, warn};
+use tracing::{debug, warn, info};
 
 /// Service for checking user permissions for command execution.
 #[derive(Debug, Clone)]
@@ -238,6 +238,134 @@ impl PermissionService {
             Role::Admin => true,
             Role::Maintainer => permission.can_freeze,
             Role::Contributor => false,
+        }
+    }
+}
+
+/// Service for populating database with user permissions from configuration.
+pub struct PermissionPopulator {
+    database: Arc<Database>,
+}
+
+impl PermissionPopulator {
+    /// Creates a new permission populator.
+    pub fn new(database: Arc<Database>) -> Self {
+        Self { database }
+    }
+
+    /// Populates database with permissions from configuration.
+    ///
+    /// This will create PermissionRecord entries in the database for all users
+    /// defined in the configuration file. Existing records will be updated.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - User permissions configuration loaded from YAML
+    /// * `overwrite_existing` - Whether to overwrite existing permission records
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of permission records created or updated.
+    pub async fn populate_from_config(
+        &self,
+        config: &UserPermissionsConfig,
+        overwrite_existing: bool,
+    ) -> Result<usize> {
+        let mut records_processed = 0;
+
+        for (_install_key, installation) in &config.installations {
+            let installation_id: i64 = installation.installation_id.parse()?;
+            
+            info!("Processing installation {}", installation_id);
+
+            // Process global users
+            for (user_login, user_perms) in &installation.global_users {
+                // Apply to all repositories in this installation, or create a global entry
+                let record = PermissionRecord::new(
+                    installation_id,
+                    "*".to_string(), // Use "*" to indicate global permissions
+                    user_login.clone(),
+                    user_perms.to_role()?,
+                    user_perms.can_freeze,
+                    user_perms.can_unfreeze,
+                    user_perms.can_emergency_override,
+                );
+
+                if self.create_or_update_permission(&record, overwrite_existing).await? {
+                    records_processed += 1;
+                }
+            }
+
+            // Process repository-specific users
+            for (_repo_key, repo_config) in &installation.repositories {
+                for (user_login, user_perms) in &repo_config.users {
+                    let record = PermissionRecord::new(
+                        installation_id,
+                        repo_config.repository.clone(),
+                        user_login.clone(),
+                        user_perms.to_role()?,
+                        user_perms.can_freeze,
+                        user_perms.can_unfreeze,
+                        user_perms.can_emergency_override,
+                    );
+
+                    if self.create_or_update_permission(&record, overwrite_existing).await? {
+                        records_processed += 1;
+                    }
+                }
+            }
+        }
+
+        info!("Processed {} permission records", records_processed);
+        Ok(records_processed)
+    }
+
+    /// Creates or updates a permission record in the database.
+    async fn create_or_update_permission(
+        &self,
+        record: &PermissionRecord,
+        overwrite_existing: bool,
+    ) -> Result<bool> {
+        // Check if record already exists
+        let existing = PermissionRecord::get_by_user_and_repo(
+            self.database.pool(),
+            record.installation_id,
+            &record.repository,
+            &record.user_login,
+        ).await?;
+
+        match existing {
+            Some(existing_record) => {
+                if overwrite_existing {
+                    // Update the existing record
+                    info!(
+                        "Updating permission for user {} in repository {} (installation {})",
+                        record.user_login, record.repository, record.installation_id
+                    );
+                    
+                    // Delete the old record and create new one (simpler than update)
+                    PermissionRecord::delete(self.database.pool(), existing_record.id).await?;
+                    PermissionRecord::create(self.database.pool(), record).await?;
+                    
+                    Ok(true)
+                } else {
+                    warn!(
+                        "Permission record already exists for user {} in repository {} (installation {}), skipping",
+                        record.user_login, record.repository, record.installation_id
+                    );
+                    Ok(false)
+                }
+            }
+            None => {
+                // Create new record
+                info!(
+                    "Creating permission for user {} in repository {} (installation {})",
+                    record.user_login, record.repository, record.installation_id
+                );
+                
+                PermissionRecord::create(self.database.pool(), record).await?;
+                Ok(true)
+            }
         }
     }
 }
