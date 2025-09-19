@@ -45,14 +45,11 @@ impl From<&str> for Role {
 impl Display for Role {
     /// Formats the Role for display as a lowercase string.
     ///
-    /// # Note
-    ///
-    /// There's a bug in the Contributor case - it displays "ended" instead of "contributor".
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Role::Admin => write!(f, "admin"),
             Role::Maintainer => write!(f, "maintainer"),
-            Role::Contributor => write!(f, "ended"),
+            Role::Contributor => write!(f, "contributor"),
         }
     }
 }
