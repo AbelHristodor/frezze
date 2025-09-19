@@ -10,7 +10,11 @@ mod handlers;
 mod repository;
 mod worker;
 
-use octofer::Octofer;
+use octofer::{
+    Octofer,
+    config::GitHubConfig,
+    github::{GitHubAuth, GitHubClient},
+};
 
 use crate::database::Database;
 
@@ -24,7 +28,6 @@ async fn main() -> Result<(), anyhow::Error> {
     dotenv::dotenv().ok();
 
     start().await?;
-
     Ok(())
 }
 
@@ -57,12 +60,16 @@ async fn start() -> Result<(), anyhow::Error> {
             database: Arc::new(db),
         };
 
-        // Start the freeze scheduler worker
         let worker_db = state.database.clone();
-        let worker_github = app.github_client(); // Assuming we can get the GitHub client from the app
-        let worker = worker::FreezeSchedulerWorker::new(worker_db, worker_github);
-        
+
         tokio::spawn(async move {
+            // Start the freeze scheduler worker
+            let gh_cfg = GitHubConfig::from_env().expect("Unable to load github cfg");
+            let gh_auth = GitHubAuth::from_config(&gh_cfg);
+            let gh = GitHubClient::new(gh_auth)
+                .await
+                .expect("Unable to start github client");
+            let worker = worker::FreezeSchedulerWorker::new(worker_db, gh.into());
             worker.start().await;
         });
 
