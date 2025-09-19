@@ -60,17 +60,11 @@ async fn start() -> Result<(), anyhow::Error> {
             database: Arc::new(db),
         };
 
+        // Start the worker that refreshes PRs status checks in the bg
         let worker_db = state.database.clone();
-
         tokio::spawn(async move {
             // Start the freeze scheduler worker
-            let gh_cfg = GitHubConfig::from_env().expect("Unable to load github cfg");
-            let gh_auth = GitHubAuth::from_config(&gh_cfg);
-            let gh = GitHubClient::new(gh_auth)
-                .await
-                .expect("Unable to start github client");
-            let worker = worker::FreezeSchedulerWorker::new(worker_db, gh.into());
-            worker.start().await;
+            worker(worker_db).await;
         });
 
         app.on_issue_comment(handlers::issue_comment_handler, Arc::new(state))
@@ -85,4 +79,14 @@ async fn start() -> Result<(), anyhow::Error> {
         .map_err(|e| anyhow::anyhow!("Server failed to start: {:?}", e))?;
 
     Ok(())
+}
+
+async fn worker(db: Arc<Database>) {
+    let gh_cfg = GitHubConfig::from_env().expect("Unable to load github cfg");
+    let gh_auth = GitHubAuth::from_config(&gh_cfg);
+    let gh = GitHubClient::new(gh_auth)
+        .await
+        .expect("Unable to start github client");
+    let worker = worker::FreezeSchedulerWorker::new(db, gh.into());
+    worker.start().await;
 }
