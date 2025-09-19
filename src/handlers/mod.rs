@@ -6,6 +6,7 @@ use tracing::{error, info};
 use crate::{
     AppState,
     freezer::{self, commands, errors::ParsingError},
+    permissions::{PermissionService, PermissionResult},
 };
 
 pub async fn issue_comment_handler(
@@ -51,6 +52,48 @@ pub async fn issue_comment_handler(
                     }
                 }
             };
+
+            // Check permissions before executing command
+            let permission_service = PermissionService::with_config(
+                extra.database.clone(),
+                extra.user_config.clone(),
+            );
+            let repository: crate::repository::Repository = repo.clone().into();
+            let repo_name = repository.full_name();
+            
+            match permission_service.check_permission(
+                installation_id as i64,
+                &repo_name,
+                &author,
+                &parser.command,
+            ).await {
+                Ok(PermissionResult::Allowed) => {
+                    // Permission granted, proceed with command execution
+                }
+                Ok(PermissionResult::Denied(reason)) => {
+                    let error_msg = format!(
+                        "## ❌ Permission Denied\n\n\
+                        🚫 **Access denied for user `{}`**\n\n\
+                        **Reason**: {}\n\n\
+                        *Contact your repository administrator to request access.*",
+                        author, reason
+                    );
+                    mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                    return Ok(());
+                }
+                Err(e) => {
+                    error!("Error checking permissions for user {}: {}", author, e);
+                    let error_msg = format!(
+                        "## ❌ Permission Check Failed\n\n\
+                        🚫 **Unable to verify permissions for user `{}`**\n\n\
+                        **Error**: {}\n\n\
+                        *Please try again later or contact support.*",
+                        author, e
+                    );
+                    mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                    return Ok(());
+                }
+            }
 
             match parser.command {
                 commands::Command::Freeze(freeze_args) => {

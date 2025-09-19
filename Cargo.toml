@@ -17,6 +17,7 @@ jsonwebtoken = "9.3.1"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+serde_yaml = "0.9.34"
 sha2 = "0.10.9"
 sqlx = { version = "0.8.6", features = [
   "json",
@@ -34,3 +35,6 @@ uuid = { version = "1.17.0", features = ["v4", "serde"] }
 shell-words = "1.1.0"
 octocrab = "0.45.0"
 thiserror = "2.0.16"
+
+[dev-dependencies]
+tempfile = "3.8"
