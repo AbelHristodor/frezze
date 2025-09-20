@@ -48,11 +48,28 @@ pub mod models;
 /// - `max_conn` - Maximum number of connections in the pool
 /// - `migrations_path` - Path to SQL migration files
 /// - `conn` - Optional connection pool (available after calling `connect()`)
+#[derive(Debug)]
 pub struct Database {
     url: String,
     max_conn: u32,
     migrations_path: String,
     pub conn: Option<sqlx::Pool<sqlx::Postgres>>,
+}
+
+impl Database {
+    /// Gets a reference to the database connection pool.
+    ///
+    /// # Returns
+    ///
+    /// Returns a reference to the PostgreSQL connection pool if available.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database connection has not been established.
+    /// Call `connect()` first to establish the connection.
+    pub fn pool(&self) -> &sqlx::Pool<sqlx::Postgres> {
+        self.conn.as_ref().expect("Database connection not established")
+    }
 }
 
 impl Database {
@@ -84,6 +101,20 @@ impl Database {
             url: url.into(),
             max_conn,
             migrations_path: migrations_path.into(),
+            conn: None,
+        }
+    }
+
+    /// Creates a mock Database instance for testing.
+    ///
+    /// This creates a Database with no actual connection, useful for unit tests
+    /// where database operations are not required.
+    #[cfg(test)]
+    pub fn new_mock() -> Self {
+        Database {
+            url: "mock://database".to_string(),
+            max_conn: 1,
+            migrations_path: "".to_string(),
             conn: None,
         }
     }

@@ -88,6 +88,15 @@ pub enum ServerCommands {
             required_unless_present("gh_private_key_path"),
         )]
         gh_private_key_base64: Option<String>,
+        /// Path to user permissions configuration file (YAML)
+        #[arg(
+            long,
+            value_name = "PATH",
+            value_hint = clap::ValueHint::FilePath,
+            env("USER_PERMISSIONS_CONFIG"),
+            help = "Path to YAML file containing user permissions configuration"
+        )]
+        user_config: Option<String>,
     },
 }
 

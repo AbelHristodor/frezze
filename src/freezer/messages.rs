@@ -151,6 +151,46 @@ pub fn command_not_implemented() -> String {
         .to_string()
 }
 
+/// Message displayed when a user is denied access to a command.
+///
+/// # Arguments
+///
+/// * `username` - The GitHub username that was denied access
+/// * `reason` - The specific reason for the denial
+///
+/// # Returns
+///
+/// A formatted markdown message explaining the permission denial
+pub fn permission_denied(username: &str, reason: &str) -> String {
+    format!(
+        "## ❌ Permission Denied\n\n\
+        🚫 **Access denied for user `{}`**\n\n\
+        **Reason**: {}\n\n\
+        *Contact your repository administrator to request access.*",
+        username, reason
+    )
+}
+
+/// Message displayed when permission checking fails due to an error.
+///
+/// # Arguments
+///
+/// * `username` - The GitHub username for which permission checking failed
+/// * `error` - The error that occurred during permission checking
+///
+/// # Returns
+///
+/// A formatted markdown message explaining the permission check failure
+pub fn permission_check_failed(username: &str, error: &str) -> String {
+    format!(
+        "## ❌ Permission Check Failed\n\n\
+        🚫 **Unable to verify permissions for user `{}`**\n\n\
+        **Error**: {}\n\n\
+        *Please try again later or contact support.*",
+        username, error
+    )
+}
+
 /// Helper function to format duration for display
 pub fn format_duration_display(duration: chrono::Duration) -> String {
     let total_seconds = duration.num_seconds();
@@ -319,5 +359,27 @@ mod tests {
         assert!(table.contains("🌞 Off"));
         assert!(table.contains("maintenance"));
         assert!(table.contains("| Repository | Status |"));
+    }
+
+    #[test]
+    fn test_permission_denied_message() {
+        let msg = permission_denied("testuser", "User role 'contributor' does not have freeze permissions");
+        assert!(msg.contains("Permission Denied"));
+        assert!(msg.contains("testuser"));
+        assert!(msg.contains("contributor"));
+        assert!(msg.contains("❌"));
+        assert!(msg.contains("🚫"));
+        assert!(msg.contains("Contact your repository administrator"));
+    }
+
+    #[test]
+    fn test_permission_check_failed_message() {
+        let msg = permission_check_failed("testuser", "Configuration file not found");
+        assert!(msg.contains("Permission Check Failed"));
+        assert!(msg.contains("testuser"));
+        assert!(msg.contains("Configuration file not found"));
+        assert!(msg.contains("❌"));
+        assert!(msg.contains("🚫"));
+        assert!(msg.contains("try again later"));
     }
 }

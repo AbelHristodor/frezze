@@ -3,10 +3,12 @@ use std::sync::Arc;
 use tracing::info;
 
 mod cli;
+mod config;
 mod database;
 mod freezer;
 mod github;
 mod handlers;
+mod permissions;
 mod repository;
 mod worker;
 
@@ -16,10 +18,11 @@ use octofer::{
     github::{GitHubAuth, GitHubClient},
 };
 
-use crate::database::Database;
+use crate::{database::Database, config::UserPermissionsConfig};
 
 struct AppState {
     database: Arc<Database>,
+    user_config: Option<Arc<UserPermissionsConfig>>,
 }
 
 #[tokio::main]
@@ -58,6 +61,7 @@ async fn start() -> Result<(), anyhow::Error> {
 
         let state = AppState {
             database: Arc::new(db),
+            user_config: None, // TODO: Add CLI parameter to load config file
         };
 
         // Start the worker that refreshes PRs status checks in the bg

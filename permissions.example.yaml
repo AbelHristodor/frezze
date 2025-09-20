@@ -1,0 +1,97 @@
+# Example user permissions configuration for Frezze
+# This file defines which users have access to which freeze commands
+# for different GitHub App installations and repositories.
+
+installations:
+  # Installation ID as string key (get this from your GitHub App settings)
+  "12345":
+    installation_id: "12345"
+    
+    # Default permissions for users not explicitly listed
+    # If omitted, users will be denied access by default
+    default_permissions:
+      role: contributor
+      can_freeze: false
+      can_unfreeze: false
+      can_emergency_override: false
+    
+    # Global users that apply to all repositories in this installation
+    # These permissions take precedence over default permissions
+    # but are overridden by repository-specific permissions
+    global_users:
+      # Admin user with full access
+      admin_user:
+        role: admin
+        can_freeze: true
+        can_unfreeze: true
+        can_emergency_override: true
+      
+      # DevOps team member with maintainer access
+      devops_lead:
+        role: maintainer
+        can_freeze: true
+        can_unfreeze: true
+        can_emergency_override: false
+    
+    # Repository-specific permissions
+    # These override both default and global user permissions
+    repositories:
+      "owner/critical-repo":
+        repository: "owner/critical-repo"
+        users:
+          # Project maintainer for this specific repo
+          project_maintainer:
+            role: maintainer
+            can_freeze: true
+            can_unfreeze: true
+            can_emergency_override: false
+          
+          # Senior developer with limited access
+          senior_dev:
+            role: contributor
+            can_freeze: false
+            can_unfreeze: false
+            can_emergency_override: false
+      
+      "owner/test-repo":
+        repository: "owner/test-repo"
+        users:
+          # Test repository can have more relaxed permissions
+          junior_dev:
+            role: maintainer
+            can_freeze: true
+            can_unfreeze: true
+            can_emergency_override: false
+
+# You can add more installations as needed
+# "67890":
+#   installation_id: "67890"
+#   default_permissions:
+#     role: contributor
+#   global_users:
+#     org_admin:
+#       role: admin
+#       can_freeze: true
+#       can_unfreeze: true
+#       can_emergency_override: true
+
+# Role Permissions Summary:
+# 
+# Admin:
+#   - Full access to all commands (freeze, unfreeze, freeze-all, unfreeze-all, status)
+#   - Can override freeze/unfreeze permissions regardless of can_* flags
+#
+# Maintainer:
+#   - Access based on can_freeze and can_unfreeze flags
+#   - Can access: freeze, unfreeze, freeze-all, unfreeze-all, status (if flags allow)
+#   - Cannot use emergency override unless explicitly granted
+#
+# Contributor:
+#   - Limited to status command only
+#   - Cannot freeze or unfreeze regardless of can_* flags
+#
+# Priority Order (highest to lowest):
+# 1. Repository-specific user permissions
+# 2. Global user permissions for the installation
+# 3. Default permissions for the installation
+# 4. Denied (if no configuration found)

@@ -65,7 +65,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Command {
     Freeze(FreezeArgs),
     FreezeAll(FreezeArgs),
