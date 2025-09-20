@@ -41,36 +41,6 @@ All commands are used in GitHub issue or PR comments:
 
 The PR refresh system ensures that all open pull requests have up-to-date check runs that reflect the current freeze status. This is essential for scheduled freezes and maintaining consistency.
 
-### CLI Commands
-
-#### Refresh All PRs
-
-Refresh check runs for all open PRs across all repositories with active freeze records:
-
-```bash
-# Using environment variables
-frezze refresh all
-
-# With explicit parameters
-frezze refresh all \
-  --database-url "postgresql://user:pass@localhost/frezze" \
-  --gh-app-id 123456 \
-  --gh-private-key-path ./private-key.pem
-```
-
-#### Refresh Specific Repository
-
-Refresh check runs for all open PRs in a specific repository:
-
-```bash
-frezze refresh repository \
-  --repository "owner/repo" \
-  --installation-id 12345678 \
-  --database-url "postgresql://user:pass@localhost/frezze" \
-  --gh-app-id 123456 \
-  --gh-private-key-path ./private-key.pem
-```
-
 ### How It Works
 
 1. **Scheduled Check** - The system queries for active freeze records that should be enforced
@@ -78,14 +48,6 @@ frezze refresh repository \
 3. **Status Evaluation** - Determines if the freeze is currently active based on start/end times
 4. **Check Run Update** - Creates GitHub check runs with success/failure status based on freeze state
 5. **Error Handling** - Logs errors for individual PRs without stopping the entire process
-
-### Integration
-
-The PR refresh system is automatically triggered when:
-
-- A new freeze is created
-- The server starts (planned)
-- Manual CLI commands are executed
 
 ## Quick Start
 
