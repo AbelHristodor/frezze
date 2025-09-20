@@ -1,0 +1,56 @@
+# Example user permissions configuration for Frezze
+# This file defines which users have access to which freeze commands
+# for different GitHub App installations and repositories.
+
+installations:
+  # Installation ID as string key (get this from your GitHub App settings)
+  "74932605":
+    installation_id: "74932605"
+
+    # Default permissions for users not explicitly listed
+    # If omitted, users will be denied access by default
+    default_permissions:
+      role: contributor
+      can_freeze: false
+      can_unfreeze: false
+      can_emergency_override: false
+
+    # Global users that apply to all repositories in this installation
+    # These permissions take precedence over default permissions
+    # but are overridden by repository-specific permissions
+    global_users:
+      AbelHristodor:
+        role: contributor
+        can_freeze: true
+        can_unfreeze: false
+        can_emergency_override: true
+
+    # # Repository-specific permissions
+    # # These override both default and global user permissions
+    # repositories:
+    #   "owner/critical-repo":
+    #     repository: "owner/critical-repo"
+    #     users:
+    #       # Project maintainer for this specific repo
+    #       project_maintainer:
+    #         role: maintainer
+    #         can_freeze: true
+    #         can_unfreeze: true
+    #         can_emergency_override: false
+    #
+    #       # Senior developer with limited access
+    #       senior_dev:
+    #         role: contributor
+    #         can_freeze: false
+    #         can_unfreeze: false
+    #         can_emergency_override: false
+    #
+    #   "owner/test-repo":
+    #     repository: "owner/test-repo"
+    #     users:
+    #       # Test repository can have more relaxed permissions
+    #       junior_dev:
+    #         role: maintainer
+    #         can_freeze: true
+    #         can_unfreeze: true
+    #         can_emergency_override: false

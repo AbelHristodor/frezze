@@ -18,7 +18,7 @@ use octofer::{
     github::{GitHubAuth, GitHubClient},
 };
 
-use crate::{database::Database, config::UserPermissionsConfig};
+use crate::{config::UserPermissionsConfig, database::Database};
 
 struct AppState {
     database: Arc<Database>,
@@ -30,6 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Load environment variables from .env file
     dotenv::dotenv().ok();
 
+    // Start the application
     start().await?;
     Ok(())
 }
@@ -45,23 +46,23 @@ async fn start() -> Result<(), anyhow::Error> {
         info!("Starting Octofer app");
 
         // Create a new Octofer app with the configuration
-        let mut app = Octofer::new(config).await.unwrap_or_else(|e| {
-            info!("Failed to create app with config, using default: {:?}", e);
-            Octofer::new_default()
-        });
+        let mut app = Octofer::new(config).await?;
 
+        // TODO: create a helper function
         let db = Database::new(
             "postgres://postgres:postgres@localhost:5432/postgres",
             "migrations",
             10,
         )
         .connect()
-        .await
-        .unwrap();
+        .await?;
+
+        // Load permission config file
+        let conf = UserPermissionsConfig::load_from_file("./users.yaml")?;
 
         let state = AppState {
             database: Arc::new(db),
-            user_config: None, // TODO: Add CLI parameter to load config file
+            user_config: Some(Arc::new(conf)),
         };
 
         // Start the worker that refreshes PRs status checks in the bg
@@ -71,6 +72,7 @@ async fn start() -> Result<(), anyhow::Error> {
             worker(worker_db).await;
         });
 
+        // Attach on the issue_comment handler
         app.on_issue_comment(handlers::issue_comment_handler, Arc::new(state))
             .await;
 

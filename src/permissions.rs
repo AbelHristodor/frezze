@@ -39,7 +39,7 @@
 use std::sync::Arc;
 
 use crate::{
-    config::{UserPermissionsConfig, UserPermissions},
+    config::{UserPermissions, UserPermissionsConfig},
     database::models::Role,
     freezer::commands::Command,
 };
@@ -149,7 +149,11 @@ impl PermissionService {
         );
 
         // Get user permissions from configuration
-        let user_permissions = match self.user_config.get_user_permissions(installation_id, repository, user_login) {
+        let user_permissions = match self.user_config.get_user_permissions(
+            installation_id,
+            repository,
+            user_login,
+        ) {
             Some(perms) => perms,
             None => {
                 warn!(
@@ -157,12 +161,15 @@ impl PermissionService {
                     user_login, repository, installation_id
                 );
                 return Ok(PermissionResult::Denied(
-                    "No permissions configured for this user in this repository".to_string()
+                    "No permissions configured for this user in this repository".to_string(),
                 ));
             }
         };
 
-        debug!("Found permissions for user {}: {:?}", user_login, user_permissions);
+        debug!(
+            "Found permissions for user {}: {:?}",
+            user_login, user_permissions
+        );
 
         // Check command permission based on user role and capabilities
         let result = self.check_command_permission(&user_permissions, command)?;
@@ -185,7 +192,11 @@ impl PermissionService {
     /// # Returns
     ///
     /// Returns the permission check result based on the user's role and command type.
-    fn check_command_permission(&self, user_permissions: &UserPermissions, command: &Command) -> Result<PermissionResult> {
+    fn check_command_permission(
+        &self,
+        user_permissions: &UserPermissions,
+        command: &Command,
+    ) -> Result<PermissionResult> {
         let role = user_permissions.to_role()?;
 
         let result = match command {
@@ -364,10 +375,14 @@ impl PermissionService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{UserPermissions, UserPermissionsConfig};
+    use crate::config::{self, UserPermissions, UserPermissionsConfig};
     use tempfile::NamedTempFile;
 
-    fn create_test_permissions(role: &str, can_freeze: bool, can_unfreeze: bool) -> UserPermissions {
+    fn create_test_permissions(
+        role: &str,
+        can_freeze: bool,
+        can_unfreeze: bool,
+    ) -> UserPermissions {
         UserPermissions {
             role: role.to_string(),
             can_freeze,
@@ -393,7 +408,7 @@ mod tests {
     #[test]
     fn test_maintainer_permissions() {
         let service = create_test_service();
-        
+
         // Maintainer with freeze permissions
         let permissions_with_freeze = create_test_permissions("maintainer", true, true);
         assert!(service.can_freeze(&Role::Maintainer, &permissions_with_freeze));
@@ -429,8 +444,9 @@ mod tests {
 
     fn create_test_service() -> PermissionService {
         let temp_file = NamedTempFile::new().unwrap();
-        UserPermissionsConfig::create_example_config(temp_file.path()).unwrap();
+        config::create_example_config(temp_file.path()).unwrap();
         let config = UserPermissionsConfig::load_from_file(temp_file.path()).unwrap();
         PermissionService::new(Arc::new(config))
     }
 }
+

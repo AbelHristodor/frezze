@@ -73,12 +73,8 @@ The system checks permissions in this order (highest to lowest priority):
 The server **requires a YAML configuration file** to operate with permission checking:
 
 ```bash
-# Start server with YAML configuration
-./frezze server start --user-config permissions.yaml
-
-# Or use environment variable
 export USER_PERMISSIONS_CONFIG=permissions.yaml
-./frezze server start
+./frezze
 ```
 
 **Note**: If no configuration file is provided, all commands except `/freeze-status` will be denied.
@@ -96,6 +92,7 @@ When a user attempts to execute a command they don't have permission for, Frezze
 3. Log the attempt for audit purposes
 
 Example denied access message:
+
 ```
 ## ❌ Permission Denied
 
@@ -127,9 +124,11 @@ Example denied access message:
 ### Configuration Validation
 
 The system validates configuration files on startup and will fail if:
+
 - YAML syntax is invalid
 - Required fields are missing
 - Installation IDs don't match between keys and values
 - User roles are not recognized (admin, maintainer, contributor)
 
 This ensures configuration errors are caught early rather than at runtime.
+

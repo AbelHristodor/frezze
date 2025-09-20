@@ -6,7 +6,7 @@ use tracing::{error, info};
 use crate::{
     AppState,
     freezer::{self, commands, errors::ParsingError, messages},
-    permissions::{PermissionService, PermissionResult},
+    permissions::{PermissionResult, PermissionService},
 };
 
 pub async fn issue_comment_handler(
@@ -58,25 +58,35 @@ pub async fn issue_comment_handler(
                 let permission_service = PermissionService::new(user_config.clone());
                 let repository: crate::repository::Repository = repo.clone().into();
                 let repo_name = repository.full_name();
-                
-                match permission_service.check_permission(
-                    installation_id as i64,
-                    &repo_name,
-                    &author,
-                    &parser.command,
-                ).await {
+
+                match permission_service
+                    .check_permission(installation_id as i64, &repo_name, &author, &parser.command)
+                    .await
+                {
                     Ok(PermissionResult::Allowed) => {
                         // Permission granted, proceed with command execution
                     }
                     Ok(PermissionResult::Denied(reason)) => {
                         let error_msg = messages::permission_denied(&author, &reason);
-                        mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                        mng.notify_comment_issue(
+                            installation_id,
+                            &repo.into(),
+                            issue_nr,
+                            &error_msg,
+                        )
+                        .await;
                         return Ok(());
                     }
                     Err(e) => {
                         error!("Error checking permissions for user {}: {}", author, e);
                         let error_msg = messages::permission_check_failed(&author, &e.to_string());
-                        mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                        mng.notify_comment_issue(
+                            installation_id,
+                            &repo.into(),
+                            issue_nr,
+                            &error_msg,
+                        )
+                        .await;
                         return Ok(());
                     }
                 }
@@ -88,10 +98,16 @@ pub async fn issue_comment_handler(
                     }
                     _ => {
                         let error_msg = messages::permission_denied(
-                            &author, 
-                            "No permission configuration file loaded. Contact your administrator."
+                            &author,
+                            "No permission configuration file loaded. Contact your administrator.",
                         );
-                        mng.notify_comment_issue(installation_id, &repo.into(), issue_nr, &error_msg).await;
+                        mng.notify_comment_issue(
+                            installation_id,
+                            &repo.into(),
+                            issue_nr,
+                            &error_msg,
+                        )
+                        .await;
                         return Ok(());
                     }
                 }
@@ -124,8 +140,7 @@ pub async fn issue_comment_handler(
                         .await;
                 }
                 commands::Command::UnfreezeAll => {
-                    mng.unfreeze_all(installation_id, author, issue_nr)
-                        .await;
+                    mng.unfreeze_all(installation_id, author, issue_nr).await;
                 }
                 commands::Command::Status(status_args) => {
                     mng.get_status(installation_id, status_args.repos, issue_nr, &repo.into())
@@ -134,22 +149,34 @@ pub async fn issue_comment_handler(
                 commands::Command::ScheduleFreeze(schedule_freeze_args) => {
                     let repository = repo.clone().into();
                     let reason_for_display = schedule_freeze_args.reason.clone();
-                    match mng.schedule_freeze(
-                        installation_id,
-                        &repository,
-                        schedule_freeze_args.from,
-                        schedule_freeze_args.to,
-                        schedule_freeze_args.duration,
-                        schedule_freeze_args.reason,
-                        author.clone(),
-                    ).await {
+                    match mng
+                        .schedule_freeze(
+                            installation_id,
+                            &repository,
+                            schedule_freeze_args.from,
+                            schedule_freeze_args.to,
+                            schedule_freeze_args.duration,
+                            schedule_freeze_args.reason,
+                            author.clone(),
+                        )
+                        .await
+                    {
                         Ok(_) => {
-                            let start_str = schedule_freeze_args.from.format("%Y-%m-%d %H:%M:%S UTC");
-                            let end_str = schedule_freeze_args.to
-                                .or_else(|| schedule_freeze_args.duration.map(|d| schedule_freeze_args.from + d))
-                                .unwrap_or_else(|| schedule_freeze_args.from + crate::freezer::manager::DEFAULT_FREEZE_DURATION)
+                            let start_str =
+                                schedule_freeze_args.from.format("%Y-%m-%d %H:%M:%S UTC");
+                            let end_str = schedule_freeze_args
+                                .to
+                                .or_else(|| {
+                                    schedule_freeze_args
+                                        .duration
+                                        .map(|d| schedule_freeze_args.from + d)
+                                })
+                                .unwrap_or_else(|| {
+                                    schedule_freeze_args.from
+                                        + crate::freezer::manager::DEFAULT_FREEZE_DURATION
+                                })
                                 .format("%Y-%m-%d %H:%M:%S UTC");
-                            
+
                             let success_msg = format!(
                                 "## ⏰ Freeze Scheduled\n\n\
                                 📅 **Repository `{}` freeze has been scheduled**\n\n\
@@ -160,9 +187,16 @@ pub async fn issue_comment_handler(
                                 repository.full_name(),
                                 start_str,
                                 end_str,
-                                reason_for_display.unwrap_or_else(|| "No reason provided".to_string())
+                                reason_for_display
+                                    .unwrap_or_else(|| "No reason provided".to_string())
                             );
-                            mng.notify_comment_issue(installation_id, &repository, issue_nr, &success_msg).await;
+                            mng.notify_comment_issue(
+                                installation_id,
+                                &repository,
+                                issue_nr,
+                                &success_msg,
+                            )
+                            .await;
                         }
                         Err(e) => {
                             let error_msg = format!(
@@ -172,7 +206,13 @@ pub async fn issue_comment_handler(
                                 *Please check your parameters and try again.*",
                                 e
                             );
-                            mng.notify_comment_issue(installation_id, &repository, issue_nr, &error_msg).await;
+                            mng.notify_comment_issue(
+                                installation_id,
+                                &repository,
+                                issue_nr,
+                                &error_msg,
+                            )
+                            .await;
                         }
                     }
                 }

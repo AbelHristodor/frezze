@@ -6,8 +6,8 @@
 
 use std::{collections::HashMap, path::Path};
 
-use serde::{Deserialize, Serialize};
 use anyhow::{Result, anyhow};
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::database::models::Role;
@@ -147,13 +147,15 @@ impl UserPermissionsConfig {
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: UserPermissionsConfig = serde_yaml::from_str(&content)?;
-        
+
         // Validate the configuration
         config.validate()?;
-        
-        info!("Loaded user permissions configuration with {} installations", 
-              config.installations.len());
-        
+
+        info!(
+            "Loaded user permissions configuration with {} installations",
+            config.installations.len()
+        );
+
         Ok(config)
     }
 
@@ -163,7 +165,8 @@ impl UserPermissionsConfig {
             if install_key != &installation.installation_id {
                 return Err(anyhow!(
                     "Installation key '{}' does not match installation_id '{}'",
-                    install_key, installation.installation_id
+                    install_key,
+                    installation.installation_id
                 ));
             }
 
@@ -172,7 +175,7 @@ impl UserPermissionsConfig {
                 default_perms.to_role()?;
             }
 
-            for (_, user_perms) in &installation.global_users {
+            for user_perms in installation.global_users.values() {
                 user_perms.to_role()?;
             }
 
@@ -180,11 +183,12 @@ impl UserPermissionsConfig {
                 if repo_key != &repo_config.repository {
                     return Err(anyhow!(
                         "Repository key '{}' does not match repository name '{}'",
-                        repo_key, repo_config.repository
+                        repo_key,
+                        repo_config.repository
                     ));
                 }
 
-                for (_, user_perms) in &repo_config.users {
+                for user_perms in repo_config.users.values() {
                     user_perms.to_role()?;
                 }
             }
@@ -214,10 +218,10 @@ impl UserPermissionsConfig {
         let installation = self.installations.get(&installation_key)?;
 
         // Check repository-specific permissions first
-        if let Some(repo_config) = installation.repositories.get(repository) {
-            if let Some(user_perms) = repo_config.users.get(user_login) {
-                return Some(user_perms.clone());
-            }
+        if let Some(repo_config) = installation.repositories.get(repository)
+            && let Some(user_perms) = repo_config.users.get(user_login)
+        {
+            return Some(user_perms.clone());
         }
 
         // Check global users for this installation
@@ -228,39 +232,48 @@ impl UserPermissionsConfig {
         // Fall back to default permissions
         installation.default_permissions.clone()
     }
+}
 
-    /// Creates an example configuration file.
-    pub fn create_example_config<P: AsRef<Path>>(path: P) -> Result<()> {
-        let mut installations = HashMap::new();
-        
-        let mut repositories = HashMap::new();
-        repositories.insert("owner/repo".to_string(), RepositoryConfig {
+/// Creates an example configuration file.
+pub fn create_example_config<P: AsRef<Path>>(path: P) -> Result<()> {
+    let mut installations = HashMap::new();
+
+    let mut repositories = HashMap::new();
+    repositories.insert(
+        "owner/repo".to_string(),
+        RepositoryConfig {
             repository: "owner/repo".to_string(),
             users: {
                 let mut users = HashMap::new();
                 users.insert("maintainer_user".to_string(), UserPermissions::maintainer());
-                users.insert("contributor_user".to_string(), UserPermissions::contributor());
+                users.insert(
+                    "contributor_user".to_string(),
+                    UserPermissions::contributor(),
+                );
                 users
             },
-        });
+        },
+    );
 
-        let mut global_users = HashMap::new();
-        global_users.insert("admin_user".to_string(), UserPermissions::admin());
+    let mut global_users = HashMap::new();
+    global_users.insert("admin_user".to_string(), UserPermissions::admin());
 
-        installations.insert("12345".to_string(), InstallationConfig {
+    installations.insert(
+        "12345".to_string(),
+        InstallationConfig {
             installation_id: "12345".to_string(),
             default_permissions: Some(UserPermissions::contributor()),
             repositories,
             global_users,
-        });
+        },
+    );
 
-        let config = UserPermissionsConfig { installations };
+    let config = UserPermissionsConfig { installations };
 
-        let yaml_content = serde_yaml::to_string(&config)?;
-        std::fs::write(path, yaml_content)?;
+    let yaml_content = serde_yaml::to_string(&config)?;
+    std::fs::write(path, yaml_content)?;
 
-        Ok(())
-    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -270,24 +283,33 @@ mod tests {
 
     #[test]
     fn test_user_permissions_to_role() {
-        assert!(matches!(UserPermissions::admin().to_role().unwrap(), Role::Admin));
-        assert!(matches!(UserPermissions::maintainer().to_role().unwrap(), Role::Maintainer));
-        assert!(matches!(UserPermissions::contributor().to_role().unwrap(), Role::Contributor));
+        assert!(matches!(
+            UserPermissions::admin().to_role().unwrap(),
+            Role::Admin
+        ));
+        assert!(matches!(
+            UserPermissions::maintainer().to_role().unwrap(),
+            Role::Maintainer
+        ));
+        assert!(matches!(
+            UserPermissions::contributor().to_role().unwrap(),
+            Role::Contributor
+        ));
     }
 
     #[test]
     fn test_load_example_config() {
         let temp_file = NamedTempFile::new().unwrap();
-        
+
         // Create example config
-        UserPermissionsConfig::create_example_config(temp_file.path()).unwrap();
-        
+        create_example_config(temp_file.path()).unwrap();
+
         // Load it back
         let config = UserPermissionsConfig::load_from_file(temp_file.path()).unwrap();
-        
+
         assert_eq!(config.installations.len(), 1);
         assert!(config.installations.contains_key("12345"));
-        
+
         let installation = &config.installations["12345"];
         assert_eq!(installation.installation_id, "12345");
         assert!(installation.default_permissions.is_some());
@@ -298,30 +320,40 @@ mod tests {
     #[test]
     fn test_get_user_permissions() {
         let temp_file = NamedTempFile::new().unwrap();
-        UserPermissionsConfig::create_example_config(temp_file.path()).unwrap();
+        create_example_config(temp_file.path()).unwrap();
         let config = UserPermissionsConfig::load_from_file(temp_file.path()).unwrap();
 
         // Test global admin user
-        let admin_perms = config.get_user_permissions(12345, "owner/repo", "admin_user").unwrap();
+        let admin_perms = config
+            .get_user_permissions(12345, "owner/repo", "admin_user")
+            .unwrap();
         assert_eq!(admin_perms.role, "admin");
         assert!(admin_perms.can_freeze);
         assert!(admin_perms.can_unfreeze);
         assert!(admin_perms.can_emergency_override);
 
         // Test repository-specific maintainer
-        let maintainer_perms = config.get_user_permissions(12345, "owner/repo", "maintainer_user").unwrap();
+        let maintainer_perms = config
+            .get_user_permissions(12345, "owner/repo", "maintainer_user")
+            .unwrap();
         assert_eq!(maintainer_perms.role, "maintainer");
         assert!(maintainer_perms.can_freeze);
         assert!(maintainer_perms.can_unfreeze);
         assert!(!maintainer_perms.can_emergency_override);
 
         // Test default permissions for unknown user
-        let default_perms = config.get_user_permissions(12345, "owner/repo", "unknown_user").unwrap();
+        let default_perms = config
+            .get_user_permissions(12345, "owner/repo", "unknown_user")
+            .unwrap();
         assert_eq!(default_perms.role, "contributor");
         assert!(!default_perms.can_freeze);
         assert!(!default_perms.can_unfreeze);
 
         // Test unknown installation
-        assert!(config.get_user_permissions(99999, "owner/repo", "admin_user").is_none());
+        assert!(
+            config
+                .get_user_permissions(99999, "owner/repo", "admin_user")
+                .is_none()
+        );
     }
 }
