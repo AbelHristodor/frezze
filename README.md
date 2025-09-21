@@ -1,6 +1,18 @@
-# Frezze - GitHub Repository Freeze Bot
+<p align="center">
+  <a href="#"><img src="https://github.com/AbelHristodor/frezze/blob/main/.github/assets/frezze.PNG?raw=true" width="160" alt="Frezze's logo" /></a>
+
+</p>
+<h3 align="center"><a href="#">Frezze</a></h3>
+<p align="center">GitHub App to Freeze activity in your repo! </p>
+<p align="center">
+<img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/AbelHristodor/frezze/docs.yaml">
+<img alt="GitHub License" src="https://img.shields.io/github/license/AbelHristodor/frezze">
+<img alt="GitHub top language" src="https://img.shields.io/github/languages/top/AbelHristodor/frezze">
+</p>
 
 A GitHub App built in Rust that manages repository freezes through comment commands. Temporarily restrict repository access during deployments, maintenance, or critical operations.
+
+Built with [Octofer](https://github.com/AbelHristodor/octofer).
 
 ## Features
 
@@ -122,7 +134,3 @@ src/
 5. **Database Logging** - Records all freeze operations
 6. **PR Refresh** - Updates check runs on all open PRs to reflect freeze status
 7. **Response** - Posts status update as comment
-
-## License
-
-MIT License - see LICENSE file for details.
