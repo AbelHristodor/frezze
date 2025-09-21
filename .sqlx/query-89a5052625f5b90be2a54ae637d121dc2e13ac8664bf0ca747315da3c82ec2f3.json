@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE freeze_records \n            SET status = $1, ended_at = $2, ended_by = $3\n            WHERE id = $4\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "89a5052625f5b90be2a54ae637d121dc2e13ac8664bf0ca747315da3c82ec2f3"
+}

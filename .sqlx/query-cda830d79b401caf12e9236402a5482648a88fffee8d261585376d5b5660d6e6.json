@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT * FROM freeze_records \n            WHERE status = 'active' \n            AND started_at <= $1 \n            AND (expires_at IS NULL OR expires_at > $1)\n            ORDER BY started_at ASC\n            ",
+  "query": "\n            SELECT * FROM freeze_records \n            WHERE status = 'scheduled' \n            AND started_at <= $1\n            ORDER BY started_at ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -76,5 +76,5 @@
       false
     ]
   },
-  "hash": "0e8b9849df34bd95bc2692f5e293dfae612816f92cc119f7c5076dff7149edbc"
+  "hash": "cda830d79b401caf12e9236402a5482648a88fffee8d261585376d5b5660d6e6"
 }

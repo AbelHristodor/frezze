@@ -8,7 +8,7 @@ use std::fmt::Display;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use uuid::Uuid;
+
 
 /// User role within a repository or organization.
 ///
@@ -110,7 +110,7 @@ impl From<&str> for FreezeStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FreezeRecord {
     /// Unique identifier for this freeze record
-    pub id: Uuid,
+    pub id: String,
     /// Repository name in "owner/repo" format
     pub repository: String,
     /// GitHub App installation ID for this repository
@@ -157,7 +157,7 @@ impl FreezeRecord {
         initiated_by: String,
     ) -> FreezeRecord {
         FreezeRecord {
-            id: Uuid::new_v4(),
+            id: uuid::Uuid::new_v4().to_string(),
             repository,
             installation_id: installation_id as i64,
             started_at,
@@ -196,7 +196,7 @@ impl FreezeRecord {
         initiated_by: String,
     ) -> FreezeRecord {
         FreezeRecord {
-            id: Uuid::new_v4(),
+            id: uuid::Uuid::new_v4().to_string(),
             repository,
             installation_id: installation_id as i64,
             started_at,

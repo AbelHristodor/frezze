@@ -2,3 +2,5 @@
 .privatekey.pem
 .vscode
 target
+*.db
+users.yaml

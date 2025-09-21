@@ -619,6 +619,7 @@ impl FreezeManager {
 
         // End all active freezes for this repository
         for record in freeze_records {
+            let record_id = record.id.clone();
             FreezeRecord::update_status(
                 conn,
                 record.id,
@@ -626,7 +627,7 @@ impl FreezeManager {
                 Some(ended_by.clone()),
             )
             .await
-            .map_err(|e| anyhow!("Failed to end freeze record {}: {}", record.id, e))?;
+            .map_err(|e| anyhow!("Failed to end freeze record {}: {}", record_id, e))?;
         }
 
         // Refresh PRs after unfreezing

@@ -1,7 +1,7 @@
 //! Database module for Frezze application.
 //!
 //! This module provides database connectivity, migration management, and data models
-//! for the Frezze GitHub repository freeze management system. It uses PostgreSQL
+//! for the Frezze GitHub repository freeze management system. It uses SQLite
 //! as the backend database with SQLx for async database operations.
 //!
 //! # Modules
@@ -16,7 +16,7 @@
 //!
 //! # async fn example() -> anyhow::Result<()> {
 //! let db = Database::new(
-//!     "postgresql://user:pass@localhost/frezze",
+//!     "sqlite:frezze.db",
 //!     "./migrations",
 //!     10
 //! )
@@ -39,12 +39,12 @@ pub mod models;
 
 /// Database connection manager for the Frezze application.
 ///
-/// Handles PostgreSQL connection pooling, migrations, and provides
+/// Handles sqlite connection pooling, migrations, and provides
 /// access to the database connection pool for other components.
 ///
 /// # Fields
 ///
-/// - `url` - PostgreSQL connection string
+/// - `url` - sqlite connection string
 /// - `max_conn` - Maximum number of connections in the pool
 /// - `migrations_path` - Path to SQL migration files
 /// - `conn` - Optional connection pool (available after calling `connect()`)
@@ -53,7 +53,7 @@ pub struct Database {
     url: String,
     max_conn: u32,
     migrations_path: String,
-    pub conn: Option<sqlx::Pool<sqlx::Postgres>>,
+    pub conn: Option<sqlx::Pool<sqlx::Sqlite>>,
 }
 
 impl Database {
@@ -61,14 +61,16 @@ impl Database {
     ///
     /// # Returns
     ///
-    /// Returns a reference to the PostgreSQL connection pool if available.
+    /// Returns a reference to the sqlite connection pool if available.
     ///
     /// # Panics
     ///
     /// Panics if the database connection has not been established.
     /// Call `connect()` first to establish the connection.
-    pub fn pool(&self) -> &sqlx::Pool<sqlx::Postgres> {
-        self.conn.as_ref().expect("Database connection not established")
+    pub fn pool(&self) -> &sqlx::Pool<sqlx::Sqlite> {
+        self.conn
+            .as_ref()
+            .expect("Database connection not established")
     }
 }
 
@@ -77,7 +79,7 @@ impl Database {
     ///
     /// # Arguments
     ///
-    /// * `url` - PostgreSQL connection string (e.g., "postgresql://user:pass@localhost/db")
+    /// * `url` - SQLite connection string (e.g., "sqlite:database.db")
     /// * `migrations_path` - Path to directory containing SQL migration files
     /// * `max_conn` - Maximum number of connections in the connection pool
     ///
@@ -91,7 +93,7 @@ impl Database {
     /// use frezze::database::Database;
     ///
     /// let db = Database::new(
-    ///     "postgresql://user:pass@localhost/frezze",
+    ///     "sqlite:frezze.db",
     ///     "./migrations",
     ///     10
     /// );
@@ -119,10 +121,11 @@ impl Database {
         }
     }
 
-    /// Establishes a connection to the PostgreSQL database.
+    /// Establishes a connection to the sqlite database.
     ///
     /// Creates a connection pool with the configured maximum connections
-    /// and tests the database connectivity.
+    /// and tests the database connectivity. Automatically creates the database
+    /// file if it doesn't exist.
     ///
     /// # Returns
     ///
@@ -132,8 +135,7 @@ impl Database {
     ///
     /// This method will return an error if:
     /// - The database URL is invalid
-    /// - The database server is unreachable
-    /// - Authentication fails
+    /// - Database file creation fails
     /// - Connection pool creation fails
     ///
     /// # Examples
@@ -141,18 +143,30 @@ impl Database {
     /// ```rust,no_run
     /// # use frezze::database::Database;
     /// # async fn example() -> anyhow::Result<()> {
-    /// let db = Database::new("postgresql://user:pass@localhost/frezze", "./migrations", 10)
+    /// let db = Database::new("sqlite:frezze.db", "./migrations", 10)
     ///     .connect()
     ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
     pub async fn connect(mut self) -> Result<Self, anyhow::Error> {
-        let pool = PoolOptions::<sqlx::Postgres>::new()
+        // Ensure the database URL includes create mode for auto-creation
+        let url = if self.url.contains('?') {
+            if !self.url.contains("mode=") {
+                format!("{}&mode=rwc", self.url)
+            } else {
+                self.url.clone()
+            }
+        } else {
+            format!("{}?mode=rwc", self.url)
+        };
+
+        let pool = PoolOptions::<sqlx::Sqlite>::new()
             .max_connections(self.max_conn)
-            .connect(&self.url)
+            .connect(&url)
             .await?;
         self.conn = Some(pool);
+        info!("Database connection established");
         Ok(self)
     }
 
@@ -178,7 +192,7 @@ impl Database {
     /// ```rust,no_run
     /// # use frezze::database::Database;
     /// # async fn example() -> anyhow::Result<()> {
-    /// let db = Database::new("postgresql://user:pass@localhost/frezze", "./migrations", 10)
+    /// let db = Database::new("sqlite:frezze.db", "./migrations", 10)
     ///     .connect()
     ///     .await?
     ///     .migrate()
@@ -204,7 +218,7 @@ impl Database {
     ///
     /// # Returns
     ///
-    /// Returns a reference to the PostgreSQL connection pool if available.
+    /// Returns a reference to the sqlite connection pool if available.
     ///
     /// # Errors
     ///
@@ -216,7 +230,7 @@ impl Database {
     /// ```rust,no_run
     /// # use frezze::database::Database;
     /// # async fn example() -> anyhow::Result<()> {
-    /// let db = Database::new("postgresql://user:pass@localhost/frezze", "./migrations", 10)
+    /// let db = Database::new("sqlite:frezze.db", "./migrations", 10)
     ///     .connect()
     ///     .await?;
     ///
@@ -225,7 +239,7 @@ impl Database {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_connection(&self) -> Result<&sqlx::Pool<sqlx::Postgres>, anyhow::Error> {
+    pub fn get_connection(&self) -> Result<&sqlx::Pool<sqlx::Sqlite>, anyhow::Error> {
         self.conn
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Database connection not established"))

@@ -1,14 +1,27 @@
 //! Database operations for freeze records, permissions, and command logs.
 //!
 //! This module provides CRUD operations for managing repository freeze states,
-//! user permissions, and command audit logs in the PostgreSQL database.
+//! user permissions, and command audit logs in the SQLite database.
 
 use anyhow::Result;
-use chrono::Utc;
-use sqlx::{PgPool, Row};
-use uuid::Uuid;
+use chrono::{DateTime, Utc};
+use sqlx::{Row, SqlitePool};
 
 use crate::database::models::{FreezeRecord, FreezeStatus};
+
+/// Helper function to parse SQLite datetime string to DateTime<Utc>
+fn parse_datetime(datetime_str: &str) -> Result<DateTime<Utc>> {
+    datetime_str.parse::<DateTime<Utc>>()
+        .map_err(|e| anyhow::anyhow!("Failed to parse datetime: {}", e))
+}
+
+/// Helper function to parse optional SQLite datetime string to Option<DateTime<Utc>>
+fn parse_optional_datetime(datetime_str: Option<String>) -> Result<Option<DateTime<Utc>>> {
+    match datetime_str {
+        Some(s) => Ok(Some(parse_datetime(&s)?)),
+        None => Ok(None),
+    }
+}
 
 /// Database operations for freeze records.
 impl FreezeRecord {
@@ -33,8 +46,8 @@ impl FreezeRecord {
     ///
     /// ```rust,no_run
     /// # use frezze::database::models::FreezeRecord;
-    /// # use sqlx::PgPool;
-    /// # async fn example(pool: &PgPool) -> anyhow::Result<()> {
+    /// # use sqlx::SqlitePool;
+    /// # async fn example(pool: &SqlitePool) -> anyhow::Result<()> {
     /// let record = FreezeRecord::new(
     ///     "owner/repo".to_string(),
     ///     12345,
@@ -48,7 +61,7 @@ impl FreezeRecord {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn create(pool: &PgPool, record: &FreezeRecord) -> Result<FreezeRecord> {
+    pub async fn create(pool: &SqlitePool, record: &FreezeRecord) -> Result<FreezeRecord> {
         // Check for overlapping active freeze records to prevent conflicts.
         // Three overlap scenarios are checked:
         // 1. New freeze starts during an existing freeze
@@ -74,19 +87,19 @@ impl FreezeRecord {
         .fetch_one(pool)
         .await?;
 
-        if overlapping.count.unwrap_or(0) > 0 {
+        if overlapping.count > 0 {
             return Err(anyhow::anyhow!(
                 "A freeze record already exists for this time period"
             ));
         }
 
         // Insert the new freeze record
-        let row = sqlx::query!(
+        let status_str = record.status.to_string();
+        sqlx::query!(
             r#"
             INSERT INTO freeze_records 
             (id, repository, installation_id, started_at, expires_at, ended_at, reason, initiated_by, ended_by, status, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            RETURNING *
             "#,
             record.id,
             record.repository,
@@ -97,25 +110,13 @@ impl FreezeRecord {
             record.reason,
             record.initiated_by,
             record.ended_by,
-            record.status.to_string(),
+            status_str,
             record.created_at
         )
-        .fetch_one(pool)
+        .execute(pool)
         .await?;
 
-        Ok(FreezeRecord {
-            id: row.id,
-            repository: row.repository,
-            installation_id: row.installation_id,
-            started_at: row.started_at,
-            expires_at: row.expires_at,
-            ended_at: row.ended_at,
-            reason: row.reason,
-            initiated_by: row.initiated_by,
-            ended_by: row.ended_by,
-            status: FreezeStatus::from(row.status.as_str()),
-            created_at: row.created_at,
-        })
+        Ok(record.clone())
     }
 
     /// Retrieves freeze records from the database with optional filtering.
@@ -135,8 +136,8 @@ impl FreezeRecord {
     ///
     /// ```rust,no_run
     /// # use frezze::database::models::FreezeRecord;
-    /// # use sqlx::PgPool;
-    /// # async fn example(pool: &PgPool) -> anyhow::Result<()> {
+    /// # use sqlx::SqlitePool;
+    /// # async fn example(pool: &SqlitePool) -> anyhow::Result<()> {
     /// // Get all active freezes for a specific repository
     /// let active_freezes = FreezeRecord::list(pool, Some(12345), Some("owner/repo"), Some(true)).await?;
     ///
@@ -146,7 +147,7 @@ impl FreezeRecord {
     /// # }
     /// ```
     pub async fn list(
-        pool: &PgPool,
+        pool: &SqlitePool,
         installation_id: Option<u64>,
         repository: Option<&str>,
         active: Option<bool>,
@@ -212,7 +213,7 @@ impl FreezeRecord {
     /// # Arguments
     ///
     /// * `pool` - Database connection pool
-    /// * `id` - UUID of the freeze record to update
+    /// * `id` - String UUID of the freeze record to update
     /// * `status` - New status to set
     /// * `ended_by` - Optional username of who ended the freeze (used when status is Ended)
     ///
@@ -224,9 +225,8 @@ impl FreezeRecord {
     ///
     /// ```rust,no_run
     /// # use frezze::database::models::{FreezeRecord, FreezeStatus};
-    /// # use sqlx::PgPool;
-    /// # use uuid::Uuid;
-    /// # async fn example(pool: &PgPool, freeze_id: Uuid) -> anyhow::Result<()> {
+    /// # use sqlx::SqlitePool;
+    /// # async fn example(pool: &SqlitePool, freeze_id: String) -> anyhow::Result<()> {
     /// // End a freeze
     /// let updated = FreezeRecord::update_status(
     ///     pool,
@@ -238,8 +238,8 @@ impl FreezeRecord {
     /// # }
     /// ```
     pub async fn update_status(
-        pool: &PgPool,
-        id: Uuid,
+        pool: &SqlitePool,
+        id: String,
         status: FreezeStatus,
         ended_by: Option<String>,
     ) -> Result<Option<FreezeRecord>> {
@@ -256,36 +256,47 @@ impl FreezeRecord {
             None
         };
 
-        let row = sqlx::query!(
+        let result = sqlx::query!(
             r#"
             UPDATE freeze_records 
             SET status = $1, ended_at = $2, ended_by = $3
             WHERE id = $4
-            RETURNING *
             "#,
             status_str,
             ended_at,
             ended_by,
             id
         )
-        .fetch_optional(pool)
+        .execute(pool)
         .await?;
 
-        match row {
-            Some(row) => Ok(Some(FreezeRecord {
-                id: row.id,
-                repository: row.repository,
-                installation_id: row.installation_id,
-                started_at: row.started_at,
-                expires_at: row.expires_at,
-                ended_at: row.ended_at,
-                reason: row.reason,
-                initiated_by: row.initiated_by,
-                ended_by: row.ended_by,
-                status: FreezeStatus::from(row.status.as_str()),
-                created_at: row.created_at,
-            })),
-            None => Ok(None),
+        if result.rows_affected() > 0 {
+            // Fetch the updated record
+            let row = sqlx::query!(
+                "SELECT * FROM freeze_records WHERE id = $1",
+                id
+            )
+            .fetch_optional(pool)
+            .await?;
+
+            match row {
+                Some(row) => Ok(Some(FreezeRecord {
+                    id: row.id.unwrap_or_default(),
+                    repository: row.repository,
+                    installation_id: row.installation_id,
+                    started_at: parse_datetime(&row.started_at)?,
+                    expires_at: parse_optional_datetime(row.expires_at)?,
+                    ended_at: parse_optional_datetime(row.ended_at)?,
+                    reason: row.reason,
+                    initiated_by: row.initiated_by,
+                    ended_by: row.ended_by,
+                    status: FreezeStatus::from(row.status.as_str()),
+                    created_at: parse_datetime(&row.created_at)?,
+                })),
+                None => Ok(None),
+            }
+        } else {
+            Ok(None)
         }
     }
 
@@ -305,7 +316,7 @@ impl FreezeRecord {
     /// # Returns
     ///
     /// Returns a vector of currently active freeze records, ordered by start time.
-    pub async fn get_active_freezes(pool: &PgPool) -> Result<Vec<FreezeRecord>> {
+    pub async fn get_active_freezes(pool: &SqlitePool) -> Result<Vec<FreezeRecord>> {
         let now = Utc::now();
         let rows = sqlx::query!(
             r#"
@@ -323,17 +334,17 @@ impl FreezeRecord {
         let mut records = Vec::new();
         for row in rows {
             records.push(FreezeRecord {
-                id: row.id,
+                id: row.id.unwrap_or_default(),
                 repository: row.repository,
                 installation_id: row.installation_id,
-                started_at: row.started_at,
-                expires_at: row.expires_at,
-                ended_at: row.ended_at,
+                started_at: parse_datetime(&row.started_at).unwrap_or_else(|_| Utc::now()),
+                expires_at: parse_optional_datetime(row.expires_at).unwrap_or(None),
+                ended_at: parse_optional_datetime(row.ended_at).unwrap_or(None),
                 reason: row.reason,
                 initiated_by: row.initiated_by,
                 ended_by: row.ended_by,
                 status: FreezeStatus::from(row.status.as_str()),
-                created_at: row.created_at,
+                created_at: parse_datetime(&row.created_at).unwrap_or_else(|_| Utc::now()),
             });
         }
 
@@ -351,14 +362,18 @@ impl FreezeRecord {
     /// # Returns
     ///
     /// Returns `true` if there are any active freeze records for the repository, `false` otherwise.
-    pub async fn is_frozen(pool: &PgPool, installation_id: i64, repository: &str) -> Result<bool> {
+    pub async fn is_frozen(
+        pool: &SqlitePool,
+        installation_id: i64,
+        repository: &str,
+    ) -> Result<bool> {
         let row = sqlx::query!(
-            "SELECT EXISTS(SELECT 1 FROM freeze_records WHERE installation_id = $1 AND repository = $2 AND status = 'active')",
+            "SELECT EXISTS(SELECT 1 FROM freeze_records WHERE installation_id = $1 AND repository = $2 AND status = 'active') as exists_active",
             installation_id,
             repository
         )
         .fetch_one(pool)
         .await?;
-        Ok(row.exists.unwrap_or(false))
+        Ok(row.exists_active != 0)
     }
 }

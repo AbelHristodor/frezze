@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1 FROM freeze_records WHERE installation_id = $1 AND repository = $2 AND status = 'active') as exists_active",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists_active",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d92ed0d6301beb677c1260e89407b09c309d0e5e5ec1f88a61c7065d792f33fc"
+}

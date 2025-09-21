@@ -59,13 +59,8 @@ pub enum ServerCommands {
             env("DATABASE_MIGRATIONS_PATH"),
             default_value = "migrations")]
         migrations_path: String,
-        /// Database URL for PostgreSQL connection
-        #[arg(
-            short,
-            long,
-            default_value = "postgres://postgres:postgres@localhost:5432/postgres",
-            env("DATABASE_URL")
-        )]
+        /// Database URL for connection
+        #[arg(short, long, default_value = "my_db", env("DATABASE_URL"))]
         database_url: String,
         /// GitHub App ID for API authentication
         #[arg(long, env("GITHUB_APP_ID"), default_value = "0")]
