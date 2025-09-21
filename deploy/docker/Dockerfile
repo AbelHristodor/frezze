@@ -1,5 +1,7 @@
 FROM rust:bookworm AS chef
 
+LABEL org.opencontainers.image.title=frezze
+LABEL org.opencontainers.image.version=latest
 LABEL org.opencontainers.image.source=https://github.com/AbelHristodor/frezze
 LABEL org.opencontainers.image.description="Github bot to freeze your repos!"
 LABEL org.opencontainers.image.licenses=GPL-3.0-or-later
