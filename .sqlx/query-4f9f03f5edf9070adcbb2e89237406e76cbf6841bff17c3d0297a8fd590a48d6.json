@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM freeze_records WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "repository",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "installation_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "started_at",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "ended_at",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "reason",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "initiated_by",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "ended_by",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 10,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "4f9f03f5edf9070adcbb2e89237406e76cbf6841bff17c3d0297a8fd590a48d6"
+}

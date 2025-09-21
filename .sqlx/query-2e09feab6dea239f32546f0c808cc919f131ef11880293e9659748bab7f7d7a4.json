@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT COUNT(*) as count FROM freeze_records \n            WHERE repository = $1 \n            AND installation_id = $2 \n            AND status = 'active'\n            AND (\n                (started_at <= $3 AND (expires_at IS NULL OR expires_at > $3))\n                OR (started_at < $4 AND (expires_at IS NULL OR expires_at >= $4))\n                OR ($3 <= started_at AND ($4 IS NULL OR $4 > started_at))\n            )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "count",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2e09feab6dea239f32546f0c808cc919f131ef11880293e9659748bab7f7d7a4"
+}

@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT * FROM freeze_records \n            WHERE status = 'active' \n            AND started_at <= $1 \n            AND (expires_at IS NULL OR expires_at > $1)\n            ORDER BY started_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "repository",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "installation_id",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "started_at",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "ended_at",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "reason",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "initiated_by",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "ended_by",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 10,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "0e8b9849df34bd95bc2692f5e293dfae612816f92cc119f7c5076dff7149edbc"
+}
