@@ -1,6 +1,6 @@
 # Frezze - GitHub Repository Freeze Bot
 
-Frezze is a GitHub App built in Rust that manages repository freezes through comment commands. It uses PostgreSQL for data storage and provides CLI commands for managing freezes and running the server.
+Frezze is a GitHub App built in Rust that manages repository freezes through comment commands. It uses SQLite for data storage and provides CLI commands for managing freezes and running the server.
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
@@ -8,22 +8,14 @@ Always reference these instructions first and fallback to search or bash command
 
 ### Prerequisites and Environment Setup
 - Rust 1.70+ is required (rustc 1.89.0+ is available in this environment)
-- PostgreSQL is required for data storage
+- SQLite is used for data storage (included with Rust build)
 - Docker is available for infrastructure
 - sqlx-cli must be installed for database migrations
 
 ### Initial Setup Commands (NEVER CANCEL - Follow ALL steps)
 Run these commands in order for a fresh setup:
 
-1. **Start Infrastructure** (takes ~17 seconds, NEVER CANCEL):
-   ```bash
-   make infrastructure-up
-   ```
-   - Sets timeout to 3+ minutes for safety
-   - Downloads PostgreSQL Docker image if needed
-   - Starts PostgreSQL on port 5432 with health checks
-
-2. **Install SQLX CLI** (takes ~3.5 minutes, NEVER CANCEL):
+1. **Install SQLX CLI** (takes ~3.5 minutes, NEVER CANCEL):
    ```bash
    # Check if already installed
    sqlx --version || make sqlx-cli
@@ -31,13 +23,13 @@ Run these commands in order for a fresh setup:
    - Set timeout to 5+ minutes
    - Note: Make script exits with error 1 but installation succeeds
 
-3. **Configure Environment**:
+2. **Configure Environment**:
    ```bash
    cp .env.example .env
    ```
    - Edit .env if needed for custom database URLs or GitHub credentials
 
-4. **Run Database Migrations** (takes <1 second):
+3. **Run Database Migrations** (takes <1 second):
    ```bash
    make migrate
    ```
@@ -106,7 +98,7 @@ Test CLI functionality:
 The server expects:
 - `GITHUB_APP_ID` (required)
 - `GITHUB_APP_PRIVATE_KEY_PATH` or `GITHUB_APP_PRIVATE_KEY_BASE64` (required)
-- `DATABASE_URL` (defaults to localhost PostgreSQL)
+- `DATABASE_URL` (defaults to SQLite database file)
 
 ## Validation
 
@@ -115,15 +107,14 @@ The server expects:
 - **ALWAYS** run `cargo test` to ensure unit tests pass
 - **ALWAYS** run `cargo clippy` before committing changes
 - **ALWAYS** run `cargo fmt --check` to ensure code is formatted
-- Database integration requires PostgreSQL to be running
+- Database integration uses SQLite (no external database required)
 
 ### Common Validation Steps
-1. Start infrastructure: `make infrastructure-up`
-2. Run migrations: `make migrate`
-3. Build: `cargo build`
-4. Test: `cargo test`
-5. Lint: `cargo clippy`
-6. Format check: `cargo fmt --check`
+1. Run migrations: `make migrate`
+2. Build: `cargo build`
+3. Test: `cargo test`
+4. Lint: `cargo clippy`
+5. Format check: `cargo fmt --check`
 
 ### Known Issues and Workarounds
 - **Makefile run command**: The `make run` command is incorrect - it calls `frezze start` instead of `frezze server start`
@@ -139,7 +130,7 @@ The server expects:
 ├── README.md                 # Main documentation
 ├── Cargo.toml               # Rust dependencies and metadata
 ├── Makefile                 # Build automation commands
-├── docker-compose.yml       # PostgreSQL infrastructure
+├── docker-compose.yml       # Docker infrastructure
 ├── .env.example            # Environment variables template
 ├── migrations/             # Database schema migrations
 ├── src/
@@ -155,7 +146,7 @@ The server expects:
 
 ### Core Components
 - **CLI Module**: Handles command-line parsing with clap
-- **Database Module**: PostgreSQL integration using sqlx
+- **Database Module**: SQLite integration using sqlx
 - **Freezer Module**: Core business logic for freeze management
 - **GitHub Module**: GitHub API integration using octocrab
 - **Server Module**: Axum web server for webhook handling
@@ -163,7 +154,6 @@ The server expects:
 ## Timing Expectations (CRITICAL - NEVER CANCEL)
 
 ### Build Times (Set timeouts accordingly)
-- **Infrastructure startup**: ~6-17 seconds (set 3+ minute timeout)
 - **SQLX CLI installation**: ~3.5 minutes (set 5+ minute timeout)
 - **First `cargo check`**: ~2 minutes (set 3+ minute timeout)
 - **First `cargo build`**: ~2 minutes (set 3+ minute timeout)
@@ -176,8 +166,6 @@ The server expects:
 ### Make Commands Available
 ```bash
 make help                    # Show all available commands
-make infrastructure-up       # Start PostgreSQL (17s, NEVER CANCEL)
-make infrastructure-down     # Stop PostgreSQL
 make sqlx-cli               # Install SQLX CLI (3.5min, NEVER CANCEL)
 make migrate                # Run database migrations
 make check                  # Run cargo check
@@ -205,7 +193,7 @@ The application processes GitHub issue/PR comments for:
 1. **ALWAYS** run: `cargo fmt`
 2. **ALWAYS** run: `cargo clippy`
 3. **ALWAYS** run: `cargo test`
-4. **ALWAYS** ensure PostgreSQL is running for database-dependent changes
+4. **ALWAYS** ensure database migrations are up to date for schema changes
 
 ### Common Development Tasks
 - **Add new freeze commands**: Modify `src/freezer/commands.rs`

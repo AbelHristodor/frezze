@@ -124,7 +124,8 @@ impl Database {
     /// Establishes a connection to the sqlite database.
     ///
     /// Creates a connection pool with the configured maximum connections
-    /// and tests the database connectivity.
+    /// and tests the database connectivity. Automatically creates the database
+    /// file if it doesn't exist.
     ///
     /// # Returns
     ///
@@ -134,8 +135,7 @@ impl Database {
     ///
     /// This method will return an error if:
     /// - The database URL is invalid
-    /// - The database server is unreachable
-    /// - Authentication fails
+    /// - Database file creation fails
     /// - Connection pool creation fails
     ///
     /// # Examples
@@ -150,11 +150,23 @@ impl Database {
     /// # }
     /// ```
     pub async fn connect(mut self) -> Result<Self, anyhow::Error> {
+        // Ensure the database URL includes create mode for auto-creation
+        let url = if self.url.contains('?') {
+            if !self.url.contains("mode=") {
+                format!("{}&mode=rwc", self.url)
+            } else {
+                self.url.clone()
+            }
+        } else {
+            format!("{}?mode=rwc", self.url)
+        };
+
         let pool = PoolOptions::<sqlx::Sqlite>::new()
             .max_connections(self.max_conn)
-            .connect(&self.url)
+            .connect(&url)
             .await?;
         self.conn = Some(pool);
+        info!("Database connection established");
         Ok(self)
     }
 

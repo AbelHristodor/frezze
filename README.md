@@ -66,7 +66,7 @@ The PR refresh system ensures that all open pull requests have up-to-date check 
 ### Prerequisites
 
 - Rust 1.70+
-- PostgreSQL
+- SQLite (included with Rust build)
 - GitHub App credentials
 
 ### Setup
@@ -77,8 +77,7 @@ git clone https://github.com/yourusername/frezze.git
 cd frezze
 cargo build
 
-# Setup database
-make infrastructure-up
+# Setup database (SQLite file will be created automatically)
 make migrate
 
 # Run application
@@ -90,10 +89,11 @@ make run
 Copy `.env.example` to `.env` and configure:
 
 ```env
-DATABASE_URL=postgresql://user:pass@localhost/frezze
+DATABASE_URL=sqlite:frezze.db?mode=rwc
 GITHUB_APP_ID=your_app_id
 GITHUB_PRIVATE_KEY_PATH=path/to/private-key.pem
 WEBHOOK_SECRET=your_webhook_secret
+PERMISSIONS_PATH=users.yaml # check PERMISSIONS.md
 PORT=3000
 ```
 
@@ -107,7 +107,6 @@ make build             # Build the application
 make test              # Run tests
 make run               # Start the server
 make migrate           # Run database migrations
-make infrastructure-up # Start PostgreSQL with Docker
 ```
 
 ### Project Structure

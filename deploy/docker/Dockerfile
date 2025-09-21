@@ -24,7 +24,6 @@ COPY . .
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin frezze
 
-# We do not need the Rust toolchain to run the binary!
 FROM debian:bookworm AS runtime
 
 RUN apt-get update && apt-get install -y \
@@ -33,6 +32,10 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Create db directory for SQLite database
+RUN mkdir -p /app/db
+
 COPY --from=builder /app/target/release/frezze /usr/local/bin
 COPY --from=builder /app/migrations /app/migrations
 

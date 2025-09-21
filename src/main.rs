@@ -48,17 +48,31 @@ async fn start() -> Result<(), anyhow::Error> {
         // Create a new Octofer app with the configuration
         let mut app = Octofer::new(config).await?;
 
-        // TODO: create a helper function
-        let db = Database::new("sqlite:todos.db", "migrations", 10)
+        // Get database URL from environment
+        let database_url =
+            std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:frezze.db".to_string());
+        let migrations_path =
+            std::env::var("MIGRATIONS_PATH").unwrap_or_else(|_| "migrations".to_string());
+
+        let db = Database::new(&database_url, &migrations_path, 10)
             .connect()
+            .await?
+            .migrate()
             .await?;
 
-        // Load permission config file
-        let conf = UserPermissionsConfig::load_from_file("./users.yaml")?;
+        let permissions_path =
+            std::env::var("PERMISSIONS_PATH").unwrap_or_else(|_| "users.yaml".to_string());
+        // Load permission config file (optional)
+        let conf = UserPermissionsConfig::load_from_file(permissions_path)
+            .map(Some)
+            .unwrap_or_else(|e| {
+                info!("No users.yaml found or failed to load: {}", e);
+                None
+            });
 
         let state = AppState {
             database: Arc::new(db),
-            user_config: Some(Arc::new(conf)),
+            user_config: conf.map(Arc::new),
         };
 
         // Start the worker that refreshes PRs status checks in the bg

@@ -1,0 +1,15 @@
+services:
+  frezze:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:/app/db/frezze.db?mode=rwc
+    volumes:
+      - ./db:/app/db
+      - ./.privatekey.pem:/app/.privatekey.pem:ro
+    restart: unless-stopped
