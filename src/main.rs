@@ -49,13 +49,9 @@ async fn start() -> Result<(), anyhow::Error> {
         let mut app = Octofer::new(config).await?;
 
         // TODO: create a helper function
-        let db = Database::new(
-            "postgres://postgres:postgres@localhost:5432/postgres",
-            "migrations",
-            10,
-        )
-        .connect()
-        .await?;
+        let db = Database::new("sqlite:todos.db", "migrations", 10)
+            .connect()
+            .await?;
 
         // Load permission config file
         let conf = UserPermissionsConfig::load_from_file("./users.yaml")?;

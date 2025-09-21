@@ -2,3 +2,4 @@
 .privatekey.pem
 .vscode
 target
+*.db

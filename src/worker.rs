@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use tokio::time::interval;
 use tracing::{error, info, warn};
 
@@ -13,6 +13,20 @@ use crate::{
     freezer::manager::FreezeManager,
     repository::Repository,
 };
+
+/// Helper function to parse SQLite datetime string to DateTime<Utc>
+fn parse_datetime(datetime_str: &str) -> anyhow::Result<DateTime<Utc>> {
+    datetime_str.parse::<DateTime<Utc>>()
+        .map_err(|e| anyhow::anyhow!("Failed to parse datetime: {}", e))
+}
+
+/// Helper function to parse optional SQLite datetime string to Option<DateTime<Utc>>
+fn parse_optional_datetime(datetime_str: Option<String>) -> anyhow::Result<Option<DateTime<Utc>>> {
+    match datetime_str {
+        Some(s) => Ok(Some(parse_datetime(&s)?)),
+        None => Ok(None),
+    }
+}
 use octofer::github::GitHubClient;
 
 /// Worker that checks for scheduled freezes and activates them when their time comes
@@ -83,7 +97,7 @@ impl FreezeSchedulerWorker {
     /// Get scheduled freezes that should be activated now
     async fn get_scheduled_freezes_to_activate(
         &self,
-        conn: &sqlx::PgPool,
+        conn: &sqlx::SqlitePool,
     ) -> anyhow::Result<Vec<FreezeRecord>> {
         let now = Utc::now();
 
@@ -103,17 +117,17 @@ impl FreezeSchedulerWorker {
         let mut records = Vec::new();
         for row in rows {
             records.push(FreezeRecord {
-                id: row.id,
+                id: row.id.unwrap_or_default(),
                 repository: row.repository,
                 installation_id: row.installation_id,
-                started_at: row.started_at,
-                expires_at: row.expires_at,
-                ended_at: row.ended_at,
+                started_at: parse_datetime(&row.started_at).unwrap_or_else(|_| Utc::now()),
+                expires_at: parse_optional_datetime(row.expires_at).unwrap_or(None),
+                ended_at: parse_optional_datetime(row.ended_at).unwrap_or(None),
                 reason: row.reason,
                 initiated_by: row.initiated_by,
                 ended_by: row.ended_by,
                 status: FreezeStatus::from(row.status.as_str()),
-                created_at: row.created_at,
+                created_at: parse_datetime(&row.created_at).unwrap_or_else(|_| Utc::now()),
             });
         }
 
@@ -128,7 +142,7 @@ impl FreezeSchedulerWorker {
             .map_err(|e| anyhow::anyhow!("Failed to get database connection: {}", e))?;
 
         // Update the freeze status to active
-        FreezeRecord::update_status(conn, freeze_record.id, FreezeStatus::Active, None)
+        FreezeRecord::update_status(conn, freeze_record.id.clone(), FreezeStatus::Active, None)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to update freeze status: {}", e))?;
 
@@ -208,4 +222,3 @@ impl FreezeSchedulerWorker {
         Ok(())
     }
 }
-
