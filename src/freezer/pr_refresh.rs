@@ -6,11 +6,53 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
-use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus};
+use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus, CheckRunOutput};
 use octofer::github::{GitHubClient, models::checks::CheckRun};
 use tracing::{error, info, warn};
 
 use crate::database::{Database, models::FreezeRecord};
+
+/// Format freeze information for check run output
+fn format_freeze_details(freeze_record: &FreezeRecord) -> CheckRunOutput {
+    let start_time = freeze_record.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    let end_time = freeze_record.expires_at
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+        .unwrap_or_else(|| "No end time set".to_string());
+    let reason = freeze_record.reason.as_deref().unwrap_or("No reason provided");
+    let author = &freeze_record.initiated_by;
+
+    let title = format!("Repository is frozen by {}", author);
+    let summary = "This repository is currently under a freeze restriction".to_string();
+    
+    let text = format!(
+        "**Repository Freeze Details**\n\n\
+        - **Author**: {}\n\
+        - **Start**: {}\n\
+        - **End**: {}\n\
+        - **Reason**: {}\n\n\
+        This PR cannot be merged while the repository is frozen. Please wait for the freeze to end or contact the freeze author.",
+        author, start_time, end_time, reason
+    );
+
+    CheckRunOutput {
+        title,
+        summary,
+        text: Some(text),
+        annotations: Vec::new(),
+        images: Vec::new(),
+    }
+}
+
+/// Format success output for unfrozen repository
+fn format_success_output() -> CheckRunOutput {
+    CheckRunOutput {
+        title: "Repository is not frozen".to_string(),
+        summary: "This repository is currently not under any freeze restrictions".to_string(),
+        text: Some("PRs can be merged normally.".to_string()),
+        annotations: Vec::new(),
+        images: Vec::new(),
+    }
+}
 
 /// Information about a pull request needed for check run updates
 #[derive(Debug, Clone)]
@@ -82,8 +124,9 @@ impl PrRefreshService {
         installation_id: u64,
         owner: &str,
         repo: &str,
-        is_frozen: bool,
+        freeze_record: Option<&FreezeRecord>,
     ) -> Result<RefreshResult> {
+        let is_frozen = freeze_record.is_some();
         info!(
             "Starting PR refresh for repository {}/{} (frozen: {})",
             owner, repo, is_frozen
@@ -114,7 +157,7 @@ impl PrRefreshService {
         };
 
         // Update PRs in batches with rate limiting
-        self.update_prs_in_batches(installation_id, owner, repo, &prs, conclusion)
+        self.update_prs_in_batches(installation_id, owner, repo, &prs, conclusion, freeze_record)
             .await
     }
 
@@ -152,7 +195,7 @@ impl PrRefreshService {
                     freeze.installation_id as u64,
                     owner,
                     repo,
-                    true, // Active freeze means frozen
+                    Some(&freeze), // Pass the freeze record
                 )
                 .await
             {
@@ -227,6 +270,7 @@ impl PrRefreshService {
         repo: &str,
         prs: &[PullRequestInfo],
         conclusion: CheckRunConclusion,
+        freeze_record: Option<&FreezeRecord>,
     ) -> Result<RefreshResult> {
         let mut successful_updates = 0;
         let mut failed_updates = 0;
@@ -242,6 +286,7 @@ impl PrRefreshService {
                 let owner = owner.to_string();
                 let repo = repo.to_string();
                 let config = self.config.clone();
+                let freeze_record = freeze_record.cloned();
 
                 let handle = tokio::spawn(async move {
                     Self::update_pr_with_retry(
@@ -251,6 +296,7 @@ impl PrRefreshService {
                         &repo,
                         &pr,
                         conclusion,
+                        freeze_record.as_ref(),
                         config,
                     )
                     .await
@@ -296,6 +342,7 @@ impl PrRefreshService {
         repo: &str,
         pr: &PullRequestInfo,
         conclusion: CheckRunConclusion,
+        freeze_record: Option<&FreezeRecord>,
         config: RefreshConfig,
     ) -> Result<()> {
         let mut attempt = 0;
@@ -309,6 +356,7 @@ impl PrRefreshService {
                 CheckRunStatus::Completed,
                 conclusion,
                 installation_id,
+                freeze_record,
             )
             .await
             {
@@ -356,7 +404,14 @@ async fn create_check_run(
     status: CheckRunStatus,
     conclusion: CheckRunConclusion,
     installation_id: u64,
+    freeze_record: Option<&FreezeRecord>,
 ) -> Result<CheckRun> {
+    let output = if let Some(freeze) = freeze_record {
+        format_freeze_details(freeze)
+    } else {
+        format_success_output()
+    };
+
     let result = client
         .app_client()
         .installation(installation_id.into())?
@@ -364,6 +419,7 @@ async fn create_check_run(
         .create_check_run("frezze", head_sha)
         .status(status)
         .conclusion(conclusion)
+        .output(output)
         .send()
         .await
         .map_err(|e| {
@@ -427,5 +483,81 @@ mod tests {
         assert_eq!(config.batch_delay_ms, 200);
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.base_retry_delay_ms, 500);
+    }
+
+    #[test]
+    fn test_format_freeze_details() {
+        use chrono::Utc;
+        use crate::database::models::{FreezeRecord, FreezeStatus};
+
+        let freeze_record = FreezeRecord {
+            id: "test-id".to_string(),
+            repository: "owner/repo".to_string(),
+            installation_id: 12345,
+            started_at: Utc::now(),
+            expires_at: Some(Utc::now() + chrono::Duration::hours(2)),
+            ended_at: None,
+            reason: Some("Emergency maintenance".to_string()),
+            initiated_by: "test-user".to_string(),
+            ended_by: None,
+            status: FreezeStatus::Active,
+            created_at: Utc::now(),
+        };
+
+        let output = format_freeze_details(&freeze_record);
+        
+        assert_eq!(output.title, "Repository is frozen by test-user");
+        assert_eq!(output.summary, "This repository is currently under a freeze restriction");
+        assert!(output.text.is_some());
+        
+        let text = output.text.unwrap();
+        assert!(text.contains("test-user"));
+        assert!(text.contains("Emergency maintenance"));
+        assert!(text.contains("This PR cannot be merged while the repository is frozen"));
+        assert_eq!(output.annotations.len(), 0);
+        assert_eq!(output.images.len(), 0);
+    }
+
+    #[test]
+    fn test_format_freeze_details_no_reason() {
+        use chrono::Utc;
+        use crate::database::models::{FreezeRecord, FreezeStatus};
+
+        let freeze_record = FreezeRecord {
+            id: "test-id".to_string(),
+            repository: "owner/repo".to_string(),
+            installation_id: 12345,
+            started_at: Utc::now(),
+            expires_at: None,
+            ended_at: None,
+            reason: None,
+            initiated_by: "test-user".to_string(),
+            ended_by: None,
+            status: FreezeStatus::Active,
+            created_at: Utc::now(),
+        };
+
+        let output = format_freeze_details(&freeze_record);
+        
+        assert_eq!(output.title, "Repository is frozen by test-user");
+        assert!(output.text.is_some());
+        
+        let text = output.text.unwrap();
+        assert!(text.contains("No reason provided"));
+        assert!(text.contains("No end time set"));
+    }
+
+    #[test]
+    fn test_format_success_output() {
+        let output = format_success_output();
+        
+        assert_eq!(output.title, "Repository is not frozen");
+        assert_eq!(output.summary, "This repository is currently not under any freeze restrictions");
+        assert!(output.text.is_some());
+        
+        let text = output.text.unwrap();
+        assert!(text.contains("PRs can be merged normally"));
+        assert_eq!(output.annotations.len(), 0);
+        assert_eq!(output.images.len(), 0);
     }
 }
