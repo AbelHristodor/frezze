@@ -1,0 +1,151 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in Frezze
+title: "[Bug]: "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out this form to help us understand and reproduce the issue.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug briefly...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe what you expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened instead?
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Go to '...'
+        2. Execute command '...'
+        3. See error
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - Command Parsing (/freeze, /unfreeze, etc.)
+        - Permission System
+        - GitHub API Integration
+        - Database Operations
+        - PR Refresh System
+        - Server/Webhook Handler
+        - CLI Interface
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: command-used
+    attributes:
+      label: Command Used
+      description: What command or operation triggered the bug?
+      placeholder: |
+        Example: `/freeze --duration 2h --reason "deployment"`
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Please provide any relevant log output, error messages, or webhook responses.
+      placeholder: Paste logs here...
+      render: shell
+
+  - type: input
+    id: installation-id
+    attributes:
+      label: GitHub App Installation ID
+      description: Your GitHub App installation ID (if applicable)
+      placeholder: "12345"
+
+  - type: input
+    id: repository
+    attributes:
+      label: Repository
+      description: The repository where the issue occurred
+      placeholder: "owner/repo"
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Where is Frezze running?
+      options:
+        - Self-hosted
+        - Cloud deployment
+        - Local development
+        - GitHub Codespaces
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Frezze Version
+      description: What version of Frezze are you running?
+      placeholder: "v0.1.0 or commit hash"
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant configuration details (remove sensitive information)
+      placeholder: |
+        Environment variables, permission config structure, etc.
+      render: yaml
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here.
+      placeholder: Any additional information that might help...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have included all relevant information above
+          required: true
+        - label: I have removed any sensitive information from logs and configuration
+          required: true
