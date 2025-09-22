@@ -73,14 +73,16 @@ The PR refresh system ensures that all open pull requests have up-to-date check 
 
 #### Option 1: Docker (Recommended)
 
+> [Finch](https://github.com/runfinch/finch) is a OSS client for docker. Substitute *finch* with *docker* in the commands below if you're using docker.
+
 ```bash
-# Using docker-compose
-docker-compose up -d
+# Using docker/ compose
+finch compose up -d 
 
 # Or using docker run
 finch run --rm \
   -e DATABASE_URL="sqlite:/app/db/frezze.db" \
-  -e GITHUB_APP_ID=1553098 \
+  -e GITHUB_APP_ID=123456 \
   -e GITHUB_PRIVATE_KEY_PATH=/app/.privatekey.pem \
   -e GITHUB_WEBHOOK_SECRET=mysecret \
   -e OCTOFER_HOST=0.0.0.0 \
