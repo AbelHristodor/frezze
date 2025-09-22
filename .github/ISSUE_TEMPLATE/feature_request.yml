@@ -1,0 +1,146 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for Frezze
+title: "[Feature]: "
+labels: ["enhancement", "feature-request"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Please fill out this form to help us understand your request.
+
+  - type: textarea
+    id: feature-summary
+    attributes:
+      label: Feature Summary
+      description: A clear and concise description of the feature you'd like to see.
+      placeholder: Briefly describe the feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What is the motivation?
+      placeholder: Describe the problem or use case this feature addresses...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented.
+      placeholder: Describe how you envision this feature working...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component Area
+      description: Which area of Frezze would this feature affect?
+      options:
+        - Command System (new commands or command options)
+        - Permission System (roles, access control)
+        - GitHub Integration (API features, webhooks)
+        - Database (storage, queries)
+        - PR Refresh System (check runs, status updates)
+        - Server/API (endpoints, configuration)
+        - CLI Interface (command-line tools)
+        - Documentation
+        - Infrastructure/Deployment
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: example-usage
+    attributes:
+      label: Example Usage
+      description: Show how this feature would be used in practice.
+      placeholder: |
+        Example commands or workflow:
+        ```
+        /new-command --option value
+        ```
+      render: shell
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: Describe any alternatives you've considered...
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would be helpful
+        - High - Important for my workflow
+        - Critical - Blocking my use case
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Estimated Complexity
+      description: How complex do you think this feature would be to implement?
+      options:
+        - Simple - Minor change or addition
+        - Medium - Moderate development effort
+        - Complex - Significant development effort
+        - Unknown - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Describe specific use cases where this feature would be valuable.
+      placeholder: |
+        1. When managing deployments across multiple teams...
+        2. During emergency situations where...
+        3. For compliance requirements that...
+
+  - type: checkboxes
+    id: feature-type
+    attributes:
+      label: Feature Type
+      description: What type of feature is this? (Select all that apply)
+      options:
+        - label: New command or command option
+        - label: API enhancement
+        - label: User interface improvement
+        - label: Performance optimization
+        - label: Security enhancement
+        - label: Integration with external service
+        - label: Developer experience improvement
+        - label: Documentation improvement
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, mockups, or examples.
+      placeholder: Any additional information, links to similar features in other tools, etc.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have provided a clear problem statement and proposed solution
+          required: true
+        - label: I have considered how this feature fits with Frezze's existing functionality
+          required: true

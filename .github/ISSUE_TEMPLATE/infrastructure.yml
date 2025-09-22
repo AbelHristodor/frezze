@@ -1,0 +1,187 @@
+name: Infrastructure
+description: Issues related to deployment, CI/CD, Docker, or infrastructure
+title: "[Infrastructure]: "
+labels: ["infrastructure", "devops"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report issues or suggest improvements related to Frezze's infrastructure, deployment, or development environment.
+
+  - type: dropdown
+    id: infrastructure-type
+    attributes:
+      label: Infrastructure Type
+      description: What type of infrastructure issue is this?
+      options:
+        - CI/CD Pipeline (GitHub Actions)
+        - Docker/Containerization
+        - Database deployment/migration
+        - Cloud deployment
+        - Development environment
+        - Build system (Cargo, Make)
+        - Monitoring/Logging
+        - Performance/Scaling
+        - Security/Access
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue-summary
+    attributes:
+      label: Issue Summary
+      description: Briefly describe the infrastructure issue or improvement.
+      placeholder: Describe the infrastructure concern...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Which environment is affected?
+      options:
+        - Development
+        - Local Docker
+        - GitHub Actions CI
+        - Production deployment
+        - Staging/Testing
+        - All environments
+        - Not environment-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current Behavior
+      description: What is currently happening?
+      placeholder: Describe the current state or behavior...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected/Desired Behavior
+      description: What should be happening instead?
+      placeholder: Describe what you expect or want to achieve...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can this issue be reproduced?
+      placeholder: |
+        1. Set up environment with...
+        2. Run command...
+        3. Observe result...
+      value: |
+        1. 
+        2. 
+        3. 
+
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: Error Logs/Output
+      description: Paste any relevant error messages, logs, or output.
+      placeholder: Include CI logs, Docker output, deployment errors, etc.
+      render: shell
+
+  - type: checkboxes
+    id: affected-components
+    attributes:
+      label: Affected Infrastructure Components
+      description: Which components are affected? (Select all that apply)
+      options:
+        - label: GitHub Actions workflows
+        - label: Docker containers/images
+        - label: Database setup/migrations
+        - label: Cargo build system
+        - label: Makefile commands
+        - label: Environment configuration
+        - label: Dependency management
+        - label: Testing infrastructure
+        - label: Deployment scripts
+        - label: Monitoring/logging setup
+
+  - type: textarea
+    id: system-info
+    attributes:
+      label: System Information
+      description: Relevant system/environment details
+      placeholder: |
+        - OS: 
+        - Docker version:
+        - Rust version:
+        - GitHub Actions runner:
+        - Cloud provider:
+      render: yaml
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Do you have a suggested fix or improvement?
+      placeholder: Describe potential solutions or improvements...
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How urgent is this infrastructure issue?
+      options:
+        - Low - Minor inconvenience
+        - Medium - Affects development workflow
+        - High - Blocks development or deployment
+        - Critical - Production system down
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Assessment
+      description: Who or what is affected by this issue?
+      placeholder: |
+        - Developers working on the project
+        - CI/CD pipeline reliability
+        - Deployment process
+        - Production users
+        - Performance/resource usage
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current Workaround
+      description: Is there a temporary workaround for this issue?
+      placeholder: Describe any temporary fixes or workarounds...
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other relevant information.
+      placeholder: |
+        - Related issues or PRs
+        - Links to documentation
+        - Screenshots of error messages
+        - Configuration files (sanitized)
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have provided relevant logs and error messages
+          required: true
+        - label: I have removed any sensitive information from logs and configurations
+          required: true

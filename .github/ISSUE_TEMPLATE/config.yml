@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "🔒 Critical Security Vulnerability"
+    url: "https://github.com/AbelHristodor/frezze/security/advisories/new"
+    about: "Report critical security vulnerabilities privately through GitHub Security Advisories"
+  - name: "💬 Discussions & Questions"
+    url: "https://github.com/AbelHristodor/frezze/discussions"
+    about: "Ask questions, share ideas, or discuss Frezze with the community"
+  - name: "📖 Documentation"
+    url: "https://github.com/AbelHristodor/frezze/blob/main/README.md"
+    about: "Read the documentation and setup guides"
