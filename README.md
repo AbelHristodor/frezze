@@ -71,6 +71,29 @@ The PR refresh system ensures that all open pull requests have up-to-date check 
 
 ### Setup
 
+#### Option 1: Docker (Recommended)
+
+```bash
+# Using docker-compose
+docker-compose up -d
+
+# Or using docker run
+finch run --rm \
+  -e DATABASE_URL="sqlite:/app/db/frezze.db" \
+  -e GITHUB_APP_ID=1553098 \
+  -e GITHUB_PRIVATE_KEY_PATH=/app/.privatekey.pem \
+  -e GITHUB_WEBHOOK_SECRET=mysecret \
+  -e OCTOFER_HOST=0.0.0.0 \
+  -e OCTOFER_PORT=3000 \
+  -v ./.privatekey.pem:/app/.privatekey.pem:ro \
+  -v ./users.yaml:/app/users.yaml:ro \
+  -p 3000:3000 \
+  --restart unless-stopped \
+  ghcr.io/abelhristodor/frezze:main
+```
+
+#### Option 2: From Source
+
 ```bash
 # Clone and build
 git clone https://github.com/yourusername/frezze.git

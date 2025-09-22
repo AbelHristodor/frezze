@@ -8,8 +8,15 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: sqlite:/app/db/frezze.db?mode=rwc
+      DATABASE_URL: sqlite:/app/db/frezze.db
+      OCTOFER_HOST: 0.0.0.0
+      OCTOFER_PORT: 3000
+      PERMISSIONS_PATH: /app/users.yaml
+      GITHUB_PRIVATE_KEY_PATH: /app/.privatekey.pem
+      GITHUB_WEBHOOK_SECRET: mysecret
+      GITHUB_APP_ID: 123456
     volumes:
       - ./db:/app/db
+      - ./users.yaml:/app/users.yaml:ro
       - ./.privatekey.pem:/app/.privatekey.pem:ro
     restart: unless-stopped
