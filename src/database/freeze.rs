@@ -351,6 +351,59 @@ impl FreezeRecord {
         Ok(records)
     }
 
+    /// Gets the active freeze record for a repository, if one exists.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - Database connection pool
+    /// * `installation_id` - GitHub installation ID
+    /// * `repository` - Repository name in "owner/repo" format
+    ///
+    /// # Returns
+    ///
+    /// Returns the active freeze record if one exists, or None otherwise.
+    pub async fn get_active_freeze(
+        pool: &SqlitePool,
+        installation_id: i64,
+        repository: &str,
+    ) -> Result<Option<FreezeRecord>> {
+        let now = Utc::now();
+        let row = sqlx::query!(
+            r#"
+            SELECT * FROM freeze_records 
+            WHERE installation_id = $1 
+            AND repository = $2 
+            AND status = 'active'
+            AND started_at <= $3 
+            AND (expires_at IS NULL OR expires_at > $3)
+            ORDER BY started_at DESC
+            LIMIT 1
+            "#,
+            installation_id,
+            repository,
+            now
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        match row {
+            Some(row) => Ok(Some(FreezeRecord {
+                id: row.id.unwrap_or_default(),
+                repository: row.repository,
+                installation_id: row.installation_id,
+                started_at: parse_datetime(&row.started_at).unwrap_or_else(|_| Utc::now()),
+                expires_at: parse_optional_datetime(row.expires_at).unwrap_or(None),
+                ended_at: parse_optional_datetime(row.ended_at).unwrap_or(None),
+                reason: row.reason,
+                initiated_by: row.initiated_by,
+                ended_by: row.ended_by,
+                status: FreezeStatus::from(row.status.as_str()),
+                created_at: parse_datetime(&row.created_at).unwrap_or_else(|_| Utc::now()),
+            })),
+            None => Ok(None),
+        }
+    }
+
     /// Checks if a repository is currently frozen.
     ///
     /// # Arguments

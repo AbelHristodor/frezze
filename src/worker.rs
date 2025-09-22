@@ -167,6 +167,7 @@ impl FreezeSchedulerWorker {
                 &freeze_manager,
                 freeze_record.installation_id as u64,
                 &repository,
+                freeze_record,
             )
             .await
         {
@@ -196,6 +197,7 @@ impl FreezeSchedulerWorker {
         freeze_manager: &FreezeManager,
         installation_id: u64,
         repository: &Repository,
+        freeze_record: &FreezeRecord,
     ) -> anyhow::Result<()> {
         // Apply PR refresh operations (mark PRs as failing, etc.)
         freeze_manager
@@ -204,7 +206,7 @@ impl FreezeSchedulerWorker {
                 installation_id,
                 repository.owner(),
                 repository.name(),
-                true, // Repository is now frozen
+                Some(freeze_record), // Pass the freeze record with context
             )
             .await
             .map_err(|e| {

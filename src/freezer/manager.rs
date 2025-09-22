@@ -182,7 +182,7 @@ impl FreezeManager {
                 installation_id,
                 repository.owner(),
                 repository.name(),
-                true, // Repository is now frozen
+                Some(&record), // Pass the created freeze record
             )
             .await
         {
@@ -255,6 +255,21 @@ impl FreezeManager {
         Ok(frozen)
     }
 
+    /// Get the active freeze record for a repository, if one exists
+    pub async fn get_active_freeze(&self, repository: &Repository, installation_id: i64) -> Result<Option<FreezeRecord>> {
+        let conn = self
+            .db
+            .get_connection()
+            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
+
+        let repo = repository.full_name();
+        let freeze_record = FreezeRecord::get_active_freeze(conn, installation_id, &repo)
+            .await
+            .map_err(|e| anyhow!("Failed to get active freeze for repository {}: {}", repo, e))?;
+
+        Ok(freeze_record)
+    }
+
     /// Manually refresh PRs for all repositories with active freezes
     pub async fn refresh_all_active_freezes(&self) -> Result<()> {
         info!("Starting manual refresh of all active freeze PRs");
@@ -301,7 +316,7 @@ impl FreezeManager {
         }
         let repository = Repository::new(parts[0], parts[1]);
 
-        let is_frozen = self.is_frozen(&repository, installation_id).await?;
+        let freeze_record = self.get_active_freeze(&repository, installation_id).await?;
 
         match self
             .pr_refresh
@@ -309,7 +324,7 @@ impl FreezeManager {
                 installation_id as u64,
                 repository.owner(),
                 repository.name(),
-                is_frozen,
+                freeze_record.as_ref(),
             )
             .await
         {
@@ -637,7 +652,7 @@ impl FreezeManager {
                 installation_id,
                 repository.owner(),
                 repository.name(),
-                false, // Repository is now unfrozen
+                None, // Repository is now unfrozen - no freeze record
             )
             .await
         {
