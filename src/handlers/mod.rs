@@ -217,11 +217,17 @@ pub async fn issue_comment_handler(
                     }
                 }
                 commands::Command::UnlockPr(unlock_pr_args) => {
+                    let pr_number = if let Some(pr) = unlock_pr_args.pr_number {
+                        pr
+                    } else {
+                        issue_nr
+                    };
+
                     let repository = repo.clone();
                     mng.unlock_pr(
                         installation_id,
                         &repository.into(),
-                        unlock_pr_args.pr_number,
+                        pr_number,
                         author,
                         issue_nr,
                     )

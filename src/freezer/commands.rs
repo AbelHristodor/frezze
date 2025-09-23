@@ -117,7 +117,7 @@ pub struct ScheduleFreezeArgs {
 pub struct UnlockPrArgs {
     /// PR number to unlock
     #[arg(long)]
-    pub pr_number: u64,
+    pub pr_number: Option<u64>,
 }
 
 fn parse_datetime(s: &str) -> Result<DateTime<Utc>, String> {
