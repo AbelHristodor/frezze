@@ -43,17 +43,26 @@ impl StatusEntry {
     }
 
     pub fn frozen(record: &FreezeRecord) -> Self {
-        let duration = if let Some(expires_at) = record.expires_at {
-            Some(messages::format_duration_display(expires_at - record.started_at))
-        } else {
-            None
-        };
+        let duration = record
+            .expires_at
+            .map(|expires_at| messages::format_duration_display(expires_at - record.started_at));
 
-        let start = Some(record.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string());
-        let end = record.expires_at.map(|e| e.format("%Y-%m-%d %H:%M:%S UTC").to_string());
+        let start = Some(
+            record
+                .started_at
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
+        );
+        let end = record
+            .expires_at
+            .map(|e| e.format("%Y-%m-%d %H:%M:%S UTC").to_string());
 
         StatusEntry {
-            freeze_status: if record.started_at <= Utc::now() { FreezeStatus::Active } else { FreezeStatus::Scheduled },
+            freeze_status: if record.started_at <= Utc::now() {
+                FreezeStatus::Active
+            } else {
+                FreezeStatus::Scheduled
+            },
             duration,
             start,
             end,
@@ -213,140 +222,6 @@ impl FreezeManager {
         Ok(record)
     }
 
-    pub async fn list_for_repo(
-        &self,
-        repository: &Repository,
-        installation_id: u64,
-        active: Option<bool>,
-    ) -> Result<Vec<FreezeRecord>> {
-        let conn = self
-            .db
-            .get_connection()
-            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
-
-        let repo = repository.full_name();
-        let records = FreezeRecord::list(conn, Some(installation_id), Some(&repo), active)
-            .await
-            .map_err(|e| anyhow!("Failed to list freeze records for repo {}: {}", repo, e))?;
-
-        if records.is_empty() {
-            info!("No freeze records found for repository: {}", repo);
-            return Err(anyhow!("No freeze records found for repository: {}", repo));
-        }
-        info!(
-            "Found {} freeze records for repository: {}",
-            records.len(),
-            repo
-        );
-        Ok(records)
-    }
-
-    pub async fn is_frozen(&self, repository: &Repository, installation_id: i64) -> Result<bool> {
-        let conn = self
-            .db
-            .get_connection()
-            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
-
-        let repo = repository.full_name();
-        let frozen = FreezeRecord::is_frozen(conn, installation_id, &repo)
-            .await
-            .map_err(|e| anyhow!("Failed to check if repository {} is frozen: {}", repo, e))?;
-
-        Ok(frozen)
-    }
-
-    /// Get the active freeze record for a repository, if one exists
-    pub async fn get_active_freeze(&self, repository: &Repository, installation_id: i64) -> Result<Option<FreezeRecord>> {
-        let conn = self
-            .db
-            .get_connection()
-            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
-
-        let repo = repository.full_name();
-        let freeze_record = FreezeRecord::get_active_freeze(conn, installation_id, &repo)
-            .await
-            .map_err(|e| anyhow!("Failed to get active freeze for repository {}: {}", repo, e))?;
-
-        Ok(freeze_record)
-    }
-
-    /// Manually refresh PRs for all repositories with active freezes
-    pub async fn refresh_all_active_freezes(&self) -> Result<()> {
-        info!("Starting manual refresh of all active freeze PRs");
-
-        match self.pr_refresh.refresh_all_active_freezes().await {
-            Ok(results) => {
-                let total_repos = results.len();
-                let total_prs: usize = results.values().map(|r| r.successful_updates).sum();
-                let total_errors: usize = results.values().map(|r| r.failed_updates).sum();
-
-                info!(
-                    "Manual refresh completed: {} repositories, {} PRs updated, {} errors",
-                    total_repos, total_prs, total_errors
-                );
-
-                if total_errors > 0 {
-                    warn!("Some PR updates failed during manual refresh");
-                    for (repo, result) in results {
-                        if !result.errors.is_empty() {
-                            warn!("Errors for repository {}: {:?}", repo, result.errors);
-                        }
-                    }
-                }
-
-                Ok(())
-            }
-            Err(e) => {
-                error!("Manual refresh failed: {}", e);
-                Err(e)
-            }
-        }
-    }
-
-    /// Refresh PRs for a specific repository
-    pub async fn refresh_repository_prs(&self, installation_id: i64, repo: &str) -> Result<()> {
-        info!("Starting manual refresh for repository: {}", repo);
-
-        let parts: Vec<&str> = repo.split('/').collect();
-        if parts.len() != 2 {
-            return Err(anyhow!(
-                "Invalid repository format: {}. Expected format: owner/repo",
-                repo
-            ));
-        }
-        let repository = Repository::new(parts[0], parts[1]);
-
-        let freeze_record = self.get_active_freeze(&repository, installation_id).await?;
-
-        match self
-            .pr_refresh
-            .refresh_repository_prs(
-                installation_id as u64,
-                repository.owner(),
-                repository.name(),
-                freeze_record.as_ref(),
-            )
-            .await
-        {
-            Ok(result) => {
-                info!(
-                    "Repository {} refresh completed: {} PRs updated, {} errors",
-                    repo, result.successful_updates, result.failed_updates
-                );
-
-                if !result.errors.is_empty() {
-                    warn!("Some PR updates failed: {:?}", result.errors);
-                }
-
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to refresh repository {}: {}", repo, e);
-                Err(e)
-            }
-        }
-    }
-
     pub async fn freeze_all(
         &self,
         installation_id: u64,
@@ -359,16 +234,19 @@ impl FreezeManager {
         let repositories = match self.get_installation_repositories(installation_id).await {
             Ok(repos) => repos,
             Err(e) => {
-                let error_msg = messages::freeze_error(&format!("Failed to get repositories: {}", e));
+                let _ = messages::freeze_error(&format!("Failed to get repositories: {}", e));
                 // We don't have a specific repository for this case, so we'll need to create a dummy one
                 // This is a limitation of the current architecture
-                error!("Failed to get repositories for installation {}: {}", installation_id, e);
+                error!(
+                    "Failed to get repositories for installation {}: {}",
+                    installation_id, e
+                );
                 return;
             }
         };
 
         if repositories.is_empty() {
-            let error_msg = messages::freeze_error("No repositories accessible for this installation");
+            let _ = messages::freeze_error("No repositories accessible for this installation");
             error!("No repositories found for installation {}", installation_id);
             return;
         }
@@ -379,8 +257,17 @@ impl FreezeManager {
 
         for repo in &repositories {
             let repository = Repository::new(&repo.owner.as_ref().unwrap().login, &repo.name);
-            
-            match self.handle_freeze(installation_id, &repository, duration, reason.clone(), initiated_by.clone()).await {
+
+            match self
+                .handle_freeze(
+                    installation_id,
+                    &repository,
+                    duration,
+                    reason.clone(),
+                    initiated_by.clone(),
+                )
+                .await
+            {
                 Ok(_) => {
                     successful_freezes += 1;
                     info!("Successfully froze repository: {}", repository.full_name());
@@ -397,27 +284,31 @@ impl FreezeManager {
         let outcome = if failed_freezes == 0 {
             messages::freeze_all_success(successful_freezes)
         } else {
-            messages::freeze_all_partial_success(successful_freezes, failed_freezes, &error_messages)
+            messages::freeze_all_partial_success(
+                successful_freezes,
+                failed_freezes,
+                &error_messages,
+            )
         };
 
         // For freeze_all, we need to pick a repository to comment on. Let's use the first one
         if let Some(first_repo) = repositories.first() {
-            let repository = Repository::new(&first_repo.owner.as_ref().unwrap().login, &first_repo.name);
-            self.notify_comment_issue(installation_id, &repository, issue_nr, &outcome).await;
+            let repository =
+                Repository::new(&first_repo.owner.as_ref().unwrap().login, &first_repo.name);
+            self.notify_comment_issue(installation_id, &repository, issue_nr, &outcome)
+                .await;
         }
     }
 
-    pub async fn unfreeze_all(
-        &self,
-        installation_id: u64,
-        ended_by: String,
-        issue_nr: u64,
-    ) {
+    pub async fn unfreeze_all(&self, installation_id: u64, ended_by: String, issue_nr: u64) {
         // Get all repositories for this installation
         let repositories = match self.get_installation_repositories(installation_id).await {
             Ok(repos) => repos,
             Err(e) => {
-                error!("Failed to get repositories for installation {}: {}", installation_id, e);
+                error!(
+                    "Failed to get repositories for installation {}: {}",
+                    installation_id, e
+                );
                 return;
             }
         };
@@ -433,11 +324,17 @@ impl FreezeManager {
 
         for repo in &repositories {
             let repository = Repository::new(&repo.owner.as_ref().unwrap().login, &repo.name);
-            
-            match self.handle_unfreeze(installation_id, &repository, ended_by.clone()).await {
+
+            match self
+                .handle_unfreeze(installation_id, &repository, ended_by.clone())
+                .await
+            {
                 Ok(_) => {
                     successful_unfreezes += 1;
-                    info!("Successfully unfroze repository: {}", repository.full_name());
+                    info!(
+                        "Successfully unfroze repository: {}",
+                        repository.full_name()
+                    );
                 }
                 Err(e) => {
                     failed_unfreezes += 1;
@@ -451,17 +348,26 @@ impl FreezeManager {
         let outcome = if failed_unfreezes == 0 {
             messages::unfreeze_all_success(successful_unfreezes)
         } else {
-            messages::unfreeze_all_partial_success(successful_unfreezes, failed_unfreezes, &error_messages)
+            messages::unfreeze_all_partial_success(
+                successful_unfreezes,
+                failed_unfreezes,
+                &error_messages,
+            )
         };
 
         // For unfreeze_all, we need to pick a repository to comment on. Let's use the first one
         if let Some(first_repo) = repositories.first() {
-            let repository = Repository::new(&first_repo.owner.as_ref().unwrap().login, &first_repo.name);
-            self.notify_comment_issue(installation_id, &repository, issue_nr, &outcome).await;
+            let repository =
+                Repository::new(&first_repo.owner.as_ref().unwrap().login, &first_repo.name);
+            self.notify_comment_issue(installation_id, &repository, issue_nr, &outcome)
+                .await;
         }
     }
 
-    async fn get_installation_repositories(&self, installation_id: u64) -> Result<Vec<octocrab::models::Repository>> {
+    async fn get_installation_repositories(
+        &self,
+        installation_id: u64,
+    ) -> Result<Vec<octocrab::models::Repository>> {
         self.github
             .with_installation_async(installation_id, |client| async move {
                 // Use the manual HTTP approach for the installation repositories endpoint
@@ -470,19 +376,20 @@ impl FreezeManager {
                     .get(url, None::<&()>)
                     .await
                     .map_err(|e| anyhow!("Failed to get installation repositories: {}", e))?;
-                
+
                 let repositories = response
                     .get("repositories")
                     .and_then(|r| r.as_array())
                     .ok_or_else(|| anyhow!("Invalid response format"))?;
-                
+
                 let mut repos = Vec::new();
                 for repo_value in repositories {
-                    let repo: octocrab::models::Repository = serde_json::from_value(repo_value.clone())
-                        .map_err(|e| anyhow!("Failed to deserialize repository: {}", e))?;
+                    let repo: octocrab::models::Repository =
+                        serde_json::from_value(repo_value.clone())
+                            .map_err(|e| anyhow!("Failed to deserialize repository: {}", e))?;
                     repos.push(repo);
                 }
-                
+
                 Ok(repos)
             })
             .await
@@ -502,15 +409,21 @@ impl FreezeManager {
             match self.get_installation_repositories(installation_id).await {
                 Ok(all_repos) => {
                     for repo in all_repos {
-                        let repo_name = format!("{}/{}", repo.owner.as_ref().unwrap().login, repo.name);
-                        let repository = Repository::new(&repo.owner.as_ref().unwrap().login, &repo.name);
-                        let entry = self.get_repository_status(installation_id, &repository).await;
+                        let repo_name =
+                            format!("{}/{}", repo.owner.as_ref().unwrap().login, repo.name);
+                        let repository =
+                            Repository::new(&repo.owner.as_ref().unwrap().login, &repo.name);
+                        let entry = self
+                            .get_repository_status(installation_id, &repository)
+                            .await;
                         status_entries.push((repo_name, entry));
                     }
                 }
                 Err(e) => {
-                    let error_msg = messages::status_error(&format!("Failed to get repositories: {}", e));
-                    self.notify_comment_issue(installation_id, repository, issue_nr, &error_msg).await;
+                    let error_msg =
+                        messages::status_error(&format!("Failed to get repositories: {}", e));
+                    self.notify_comment_issue(installation_id, repository, issue_nr, &error_msg)
+                        .await;
                     return;
                 }
             }
@@ -519,27 +432,44 @@ impl FreezeManager {
             for repo_name in repos {
                 let parts: Vec<&str> = repo_name.split('/').collect();
                 if parts.len() != 2 {
-                    status_entries.push((repo_name.clone(), StatusEntry::error("Invalid repository format")));
+                    status_entries.push((
+                        repo_name.clone(),
+                        StatusEntry::error("Invalid repository format"),
+                    ));
                     continue;
                 }
-                
+
                 let repository = Repository::new(parts[0], parts[1]);
-                let entry = self.get_repository_status(installation_id, &repository).await;
+                let entry = self
+                    .get_repository_status(installation_id, &repository)
+                    .await;
                 status_entries.push((repo_name, entry));
             }
         }
 
         let status_msg = messages::format_status_table(status_entries);
-        self.notify_comment_issue(installation_id, repository, issue_nr, &status_msg).await;
+        self.notify_comment_issue(installation_id, repository, issue_nr, &status_msg)
+            .await;
     }
 
-    async fn get_repository_status(&self, installation_id: u64, repository: &Repository) -> StatusEntry {
+    async fn get_repository_status(
+        &self,
+        installation_id: u64,
+        repository: &Repository,
+    ) -> StatusEntry {
         let conn = match self.db.get_connection() {
             Ok(conn) => conn,
             Err(e) => return StatusEntry::error(&format!("Database error: {}", e)),
         };
 
-        match FreezeRecord::list(conn, Some(installation_id), Some(&repository.full_name()), Some(true)).await {
+        match FreezeRecord::list(
+            conn,
+            Some(installation_id),
+            Some(&repository.full_name()),
+            Some(true),
+        )
+        .await
+        {
             Ok(records) => {
                 if records.is_empty() {
                     StatusEntry::not_frozen()

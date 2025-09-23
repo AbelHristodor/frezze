@@ -6,7 +6,6 @@ mod cli;
 mod config;
 mod database;
 mod freezer;
-mod github;
 mod handlers;
 mod permissions;
 mod repository;
@@ -62,7 +61,8 @@ async fn start() -> Result<(), anyhow::Error> {
 
         let permissions_path =
             std::env::var("PERMISSIONS_PATH").unwrap_or_else(|_| "users.yaml".to_string());
-        // Load permission config file (optional)
+
+        // Load permission config file
         let conf = UserPermissionsConfig::load_from_file(permissions_path)
             .map(Some)
             .unwrap_or_else(|e| {
