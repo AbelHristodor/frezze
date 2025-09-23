@@ -18,8 +18,9 @@ Frezze implements a comprehensive permission system to control which users can e
 | `/freeze-all` | ✅ | ✅ (if can_freeze) | ❌ |
 | `/unfreeze` | ✅ | ✅ (if can_unfreeze) | ❌ |
 | `/unfreeze-all` | ✅ | ✅ (if can_unfreeze) | ❌ |
-| `/freeze-status` | ✅ | ✅ | ✅ |
+| `/status` | ✅ | ✅ | ✅ |
 | `/schedule-freeze` | ✅ | ✅ (if can_freeze) | ❌ |
+| `/unlock-pr` | ✅ | ✅ (if can_unfreeze) | ❌ |
 
 *Maintainer permissions depend on the `can_freeze` and `can_unfreeze` flags in their configuration.
 
@@ -77,7 +78,7 @@ export USER_PERMISSIONS_CONFIG=permissions.yaml
 ./frezze
 ```
 
-**Note**: If no configuration file is provided, all commands except `/freeze-status` will be denied.
+**Note**: If no configuration file is provided, all commands except `/status` will be denied.
 
 ### Example Configuration
 
