@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
-    database::{Database, models::FreezeRecord},
+    database::{
+        Database,
+        models::{FreezeRecord, UnlockedPr},
+    },
     freezer::messages,
     repository::Repository,
 };
@@ -611,5 +614,96 @@ impl FreezeManager {
         }
 
         Ok(())
+    }
+    /// Get the active freeze record for a repository, if one exists
+    async fn get_active_freeze(
+        &self,
+        repository: &Repository,
+        installation_id: i64,
+    ) -> Result<Option<FreezeRecord>> {
+        let conn = self
+            .db
+            .get_connection()
+            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
+
+        let repo = repository.full_name();
+        let freeze_record = FreezeRecord::get_active_freeze(conn, installation_id, &repo)
+            .await
+            .map_err(|e| anyhow!("Failed to get active freeze for repository {}: {}", repo, e))?;
+
+        Ok(freeze_record)
+    }
+
+    pub async fn unlock_pr(
+        &self,
+        installation_id: u64,
+        repository: &Repository,
+        pr_number: u64,
+        author: String,
+        issue_nr: u64,
+    ) {
+        let repo_name = repository.full_name();
+
+        // Check if repository is currently frozen
+        match self
+            .get_active_freeze(repository, installation_id as i64)
+            .await
+        {
+            Ok(Some(_)) => {
+                // Repository is frozen, proceed with unlock
+                match UnlockedPr::unlock_pr(
+                    self.db.pool(),
+                    installation_id as i64,
+                    &repo_name,
+                    pr_number,
+                    &author,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        let success_msg = messages::pr_unlock_success(pr_number);
+                        self.notify_comment_issue(
+                            installation_id,
+                            repository,
+                            issue_nr,
+                            &success_msg,
+                        )
+                        .await;
+
+                        // Refresh the specific PR to update its status
+                        if let Err(e) = self
+                            .pr_refresh
+                            .refresh_single_pr(installation_id as i64, repository, pr_number)
+                            .await
+                        {
+                            error!("Failed to refresh PR {} after unlock: {}", pr_number, e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to unlock PR {}: {}", pr_number, e);
+                        let error_msg = messages::pr_unlock_failed(pr_number, &e.to_string());
+                        self.notify_comment_issue(
+                            installation_id,
+                            repository,
+                            issue_nr,
+                            &error_msg,
+                        )
+                        .await;
+                    }
+                }
+            }
+            Ok(None) => {
+                // Repository is not frozen
+                let error_msg = messages::pr_unlock_not_frozen(&repo_name);
+                self.notify_comment_issue(installation_id, repository, issue_nr, &error_msg)
+                    .await;
+            }
+            Err(e) => {
+                error!("Failed to check freeze status for {}: {}", repo_name, e);
+                let error_msg = messages::pr_unlock_failed(pr_number, &e.to_string());
+                self.notify_comment_issue(installation_id, repository, issue_nr, &error_msg)
+                    .await;
+            }
+        }
     }
 }

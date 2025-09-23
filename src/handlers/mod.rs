@@ -216,6 +216,17 @@ pub async fn issue_comment_handler(
                         }
                     }
                 }
+                commands::Command::UnlockPr(unlock_pr_args) => {
+                    let repository = repo.clone();
+                    mng.unlock_pr(
+                        installation_id,
+                        &repository.into(),
+                        unlock_pr_args.pr_number,
+                        author,
+                        issue_nr,
+                    )
+                    .await;
+                }
             }
         }
     } else {

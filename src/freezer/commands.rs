@@ -73,6 +73,7 @@ pub enum Command {
     UnfreezeAll,
     Status(StatusArgs),
     ScheduleFreeze(ScheduleFreezeArgs),
+    UnlockPr(UnlockPrArgs),
 }
 
 #[derive(Args, Debug)]
@@ -110,6 +111,13 @@ pub struct ScheduleFreezeArgs {
     /// Reason for freezing, optional
     #[arg(long)]
     pub reason: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct UnlockPrArgs {
+    /// PR number to unlock
+    #[arg(long)]
+    pub pr_number: u64,
 }
 
 fn parse_datetime(s: &str) -> Result<DateTime<Utc>, String> {

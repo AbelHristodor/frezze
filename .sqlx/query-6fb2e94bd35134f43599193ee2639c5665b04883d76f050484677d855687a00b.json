@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            DELETE FROM unlocked_prs\n            WHERE installation_id = ? AND repository = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6fb2e94bd35134f43599193ee2639c5665b04883d76f050484677d855687a00b"
+}

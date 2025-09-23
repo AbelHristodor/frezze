@@ -1,7 +1,8 @@
-/// Formatted user-facing messages for Frezze GitHub bot responses.
-///
-/// All messages use Markdown formatting and maintain the freeze theme
-/// with appropriate emojis and professional tone.
+// Formatted user-facing messages for Frezze GitHub bot responses.
+//
+// All messages use Markdown formatting and maintain the freeze theme
+// with appropriate emojis and professional tone.
+//
 
 /// Success message for repository freeze operation
 pub fn freeze_success(repository: &str, duration_str: &str, reason_str: &str) -> String {
@@ -28,9 +29,13 @@ pub fn freeze_all_partial_success(successful: usize, failed: usize, errors: &[St
     let error_list = if errors.len() <= 5 {
         errors.join("\n- ")
     } else {
-        format!("{}... and {} more", errors[..5].join("\n- "), errors.len() - 5)
+        format!(
+            "{}... and {} more",
+            errors[..5].join("\n- "),
+            errors.len() - 5
+        )
     };
-    
+
     format!(
         "## ⚠️ Partial Freeze Success\n\n\
         ✅ **Successfully froze {successful} repositories**\n\
@@ -56,9 +61,13 @@ pub fn unfreeze_all_partial_success(successful: usize, failed: usize, errors: &[
     let error_list = if errors.len() <= 5 {
         errors.join("\n- ")
     } else {
-        format!("{}... and {} more", errors[..5].join("\n- "), errors.len() - 5)
+        format!(
+            "{}... and {} more",
+            errors[..5].join("\n- "),
+            errors.len() - 5
+        )
     };
-    
+
     format!(
         "## ⚠️ Partial Unfreeze Success\n\n\
         ✅ **Successfully unfroze {successful} repositories**\n\
@@ -82,11 +91,11 @@ pub fn status_error(error: &str) -> String {
 /// Format freeze status table for multiple repositories
 pub fn format_status_table(entries: Vec<(String, super::manager::StatusEntry)>) -> String {
     use super::manager::FreezeStatus;
-    
+
     let mut table = String::from("## 📊 Repository Freeze Status\n\n");
     table.push_str("| Repository | Status | Duration | Start | End | Reason |\n");
     table.push_str("|------------|--------|----------|-------|-----|--------|\n");
-    
+
     for (repo_name, entry) in entries {
         let status = match entry.freeze_status {
             FreezeStatus::Active => "🔒 Active",
@@ -94,18 +103,18 @@ pub fn format_status_table(entries: Vec<(String, super::manager::StatusEntry)>) 
             FreezeStatus::Off => "🌞 Off",
             FreezeStatus::Error(ref err) => &format!("❌ Error: {}", err),
         };
-        
+
         let duration = entry.duration.unwrap_or_else(|| "-".to_string());
         let start = entry.start.unwrap_or_else(|| "-".to_string());
         let end = entry.end.unwrap_or_else(|| "-".to_string());
         let reason = entry.reason.unwrap_or_else(|| "-".to_string());
-        
+
         table.push_str(&format!(
             "| {} | {} | {} | {} | {} | {} |\n",
             repo_name, status, duration, start, end, reason
         ));
     }
-    
+
     table.push_str("\n*Use `/freeze` or `/unfreeze` to manage individual repositories.*");
     table
 }
@@ -188,6 +197,30 @@ pub fn permission_check_failed(username: &str, error: &str) -> String {
         **Error**: {}\n\n\
         *Please try again later or contact support.*",
         username, error
+    )
+}
+
+/// Format success message for PR unlock
+pub fn pr_unlock_success(pr_number: u64) -> String {
+    format!(
+        "## ✅ PR Unlocked Successfully\n\n🔓 **PR #{} has been unlocked**\n\nThis PR can now be merged despite the repository freeze. The unlock will remain active until the next freeze starts.",
+        pr_number
+    )
+}
+
+/// Format error message for PR unlock failure
+pub fn pr_unlock_failed(pr_number: u64, error: &str) -> String {
+    format!(
+        "## ❌ Failed to Unlock PR\n\n🚫 **Could not unlock PR #{}**\n\n**Error**: {}\n\n*Please try again or contact your administrator.*",
+        pr_number, error
+    )
+}
+
+/// Format error message when trying to unlock PR in non-frozen repository
+pub fn pr_unlock_not_frozen(repository: &str) -> String {
+    format!(
+        "## ⚠️ Repository Not Frozen\n\n📂 **Repository `{}` is not currently frozen**\n\nPR unlock is only available when the repository is frozen. PRs can be merged normally.",
+        repository
     )
 }
 
@@ -332,25 +365,31 @@ mod tests {
 
     #[test]
     fn test_format_status_table() {
-        use crate::freezer::manager::{StatusEntry, FreezeStatus};
-        
+        use crate::freezer::manager::{FreezeStatus, StatusEntry};
+
         let entries = vec![
-            ("owner/repo1".to_string(), StatusEntry {
-                freeze_status: FreezeStatus::Active,
-                duration: Some("2h".to_string()),
-                start: Some("2023-01-01 10:00:00 UTC".to_string()),
-                end: Some("2023-01-01 12:00:00 UTC".to_string()),
-                reason: Some("maintenance".to_string()),
-            }),
-            ("owner/repo2".to_string(), StatusEntry {
-                freeze_status: FreezeStatus::Off,
-                duration: None,
-                start: None,
-                end: None,
-                reason: None,
-            }),
+            (
+                "owner/repo1".to_string(),
+                StatusEntry {
+                    freeze_status: FreezeStatus::Active,
+                    duration: Some("2h".to_string()),
+                    start: Some("2023-01-01 10:00:00 UTC".to_string()),
+                    end: Some("2023-01-01 12:00:00 UTC".to_string()),
+                    reason: Some("maintenance".to_string()),
+                },
+            ),
+            (
+                "owner/repo2".to_string(),
+                StatusEntry {
+                    freeze_status: FreezeStatus::Off,
+                    duration: None,
+                    start: None,
+                    end: None,
+                    reason: None,
+                },
+            ),
         ];
-        
+
         let table = format_status_table(entries);
         assert!(table.contains("📊 Repository Freeze Status"));
         assert!(table.contains("owner/repo1"));
@@ -363,7 +402,10 @@ mod tests {
 
     #[test]
     fn test_permission_denied_message() {
-        let msg = permission_denied("testuser", "User role 'contributor' does not have freeze permissions");
+        let msg = permission_denied(
+            "testuser",
+            "User role 'contributor' does not have freeze permissions",
+        );
         assert!(msg.contains("Permission Denied"));
         assert!(msg.contains("testuser"));
         assert!(msg.contains("contributor"));

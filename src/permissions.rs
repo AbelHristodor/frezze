@@ -93,6 +93,11 @@ impl PermissionService {
         Self { user_config }
     }
 
+    /// Check if user has admin role
+    fn is_admin(&self, role: &Role) -> bool {
+        matches!(role, Role::Admin)
+    }
+
     /// Checks if a user has permission to execute a specific command.
     ///
     /// This method evaluates permissions using the hierarchical system:
@@ -256,6 +261,16 @@ impl PermissionService {
                 } else {
                     PermissionResult::Denied(format!(
                         "User role '{}' does not have schedule freeze permissions",
+                        role
+                    ))
+                }
+            }
+            Command::UnlockPr(_) => {
+                if self.is_admin(&role) {
+                    PermissionResult::Allowed
+                } else {
+                    PermissionResult::Denied(format!(
+                        "User role '{}' does not have unlock pr permissions",
                         role
                     ))
                 }
@@ -449,4 +464,3 @@ mod tests {
         PermissionService::new(Arc::new(config))
     }
 }
-

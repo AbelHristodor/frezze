@@ -6,24 +6,37 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
-use octocrab::params::checks::{CheckRunConclusion, CheckRunStatus, CheckRunOutput};
-use octofer::github::{GitHubClient, models::checks::CheckRun};
+use octocrab::params::checks::{CheckRunConclusion, CheckRunOutput, CheckRunStatus};
+use octofer::github::{GitHubClient, models::checks::CheckRun, pulls::PullRequest};
 use tracing::{error, info, warn};
 
-use crate::database::{Database, models::FreezeRecord};
+use crate::{
+    database::{
+        Database,
+        models::{FreezeRecord, UnlockedPr},
+    },
+    repository::Repository,
+};
 
 /// Format freeze information for check run output
 fn format_freeze_details(freeze_record: &FreezeRecord) -> CheckRunOutput {
-    let start_time = freeze_record.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
-    let end_time = freeze_record.expires_at
+    let start_time = freeze_record
+        .started_at
+        .format("%Y-%m-%d %H:%M:%S UTC")
+        .to_string();
+    let end_time = freeze_record
+        .expires_at
         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
         .unwrap_or_else(|| "No end time set".to_string());
-    let reason = freeze_record.reason.as_deref().unwrap_or("No reason provided");
+    let reason = freeze_record
+        .reason
+        .as_deref()
+        .unwrap_or("No reason provided");
     let author = &freeze_record.initiated_by;
 
     let title = format!("Repository is frozen by {}", author);
     let summary = "This repository is currently under a freeze restriction".to_string();
-    
+
     let text = format!(
         "**Repository Freeze Details**\n\n\
         - **Author**: {}\n\
@@ -157,8 +170,15 @@ impl PrRefreshService {
         };
 
         // Update PRs in batches with rate limiting
-        self.update_prs_in_batches(installation_id, owner, repo, &prs, conclusion, freeze_record)
-            .await
+        self.update_prs_in_batches(
+            installation_id,
+            owner,
+            repo,
+            &prs,
+            conclusion,
+            freeze_record,
+        )
+        .await
     }
 
     /// Refresh check runs for all repositories with active freezes
@@ -258,6 +278,29 @@ impl PrRefreshService {
                     .collect();
 
                 Ok(prs)
+            })
+            .await
+    }
+
+    async fn get_pr(
+        &self,
+        installation_id: u64,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<PullRequest> {
+        self.github
+            .with_installation_async(installation_id, |client| async move {
+                let pr = client
+                    .pulls(owner, repo)
+                    .get(pr_number)
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to fetch open PRs: {:?}", e);
+                        anyhow!("Failed to fetch open PRs: {}", e)
+                    })?;
+
+                Ok(pr)
             })
             .await
     }
@@ -394,6 +437,62 @@ impl PrRefreshService {
             pr.number
         ))
     }
+
+    /// Refresh a single PR's check run status
+    pub async fn refresh_single_pr(
+        &self,
+        installation_id: i64,
+        repository: &Repository,
+        pr_number: u64,
+    ) -> Result<()> {
+        // Get PR info
+        let pr = self
+            .get_pr(
+                installation_id as u64,
+                &repository.owner,
+                &repository.name,
+                pr_number,
+            )
+            .await?;
+
+        // Check freeze status and if PR is unlocked
+        let repo_name = repository.full_name();
+        let is_frozen =
+            FreezeRecord::is_frozen(self.db.pool(), installation_id, &repo_name).await?;
+
+        let is_unlocked = if is_frozen {
+            UnlockedPr::is_pr_unlocked(self.db.pool(), installation_id, &repo_name, pr_number)
+                .await?
+        } else {
+            false
+        };
+
+        let pr_info = PullRequestInfo {
+            number: pr.number,
+            head_sha: pr.head.sha,
+        };
+
+        // Determine check run conclusion based on freeze status
+        let conclusion = if is_frozen && !is_unlocked {
+            CheckRunConclusion::Failure
+        } else {
+            CheckRunConclusion::Success
+        };
+
+        Self::update_pr_with_retry(
+            self.github.clone(),
+            installation_id as u64,
+            &repository.owner,
+            &repository.name,
+            &pr_info,
+            conclusion,
+            None,
+            RefreshConfig::default(),
+        )
+        .await?;
+
+        Ok(())
+    }
 }
 
 async fn create_check_run(
@@ -487,8 +586,8 @@ mod tests {
 
     #[test]
     fn test_format_freeze_details() {
-        use chrono::Utc;
         use crate::database::models::{FreezeRecord, FreezeStatus};
+        use chrono::Utc;
 
         let freeze_record = FreezeRecord {
             id: "test-id".to_string(),
@@ -505,11 +604,14 @@ mod tests {
         };
 
         let output = format_freeze_details(&freeze_record);
-        
+
         assert_eq!(output.title, "Repository is frozen by test-user");
-        assert_eq!(output.summary, "This repository is currently under a freeze restriction");
+        assert_eq!(
+            output.summary,
+            "This repository is currently under a freeze restriction"
+        );
         assert!(output.text.is_some());
-        
+
         let text = output.text.unwrap();
         assert!(text.contains("test-user"));
         assert!(text.contains("Emergency maintenance"));
@@ -520,8 +622,8 @@ mod tests {
 
     #[test]
     fn test_format_freeze_details_no_reason() {
-        use chrono::Utc;
         use crate::database::models::{FreezeRecord, FreezeStatus};
+        use chrono::Utc;
 
         let freeze_record = FreezeRecord {
             id: "test-id".to_string(),
@@ -538,10 +640,10 @@ mod tests {
         };
 
         let output = format_freeze_details(&freeze_record);
-        
+
         assert_eq!(output.title, "Repository is frozen by test-user");
         assert!(output.text.is_some());
-        
+
         let text = output.text.unwrap();
         assert!(text.contains("No reason provided"));
         assert!(text.contains("No end time set"));
@@ -550,11 +652,14 @@ mod tests {
     #[test]
     fn test_format_success_output() {
         let output = format_success_output();
-        
+
         assert_eq!(output.title, "Repository is not frozen");
-        assert_eq!(output.summary, "This repository is currently not under any freeze restrictions");
+        assert_eq!(
+            output.summary,
+            "This repository is currently not under any freeze restrictions"
+        );
         assert!(output.text.is_some());
-        
+
         let text = output.text.unwrap();
         assert!(text.contains("PRs can be merged normally"));
         assert_eq!(output.annotations.len(), 0);

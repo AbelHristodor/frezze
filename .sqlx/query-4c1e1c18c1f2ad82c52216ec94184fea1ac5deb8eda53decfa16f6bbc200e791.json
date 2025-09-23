@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT OR REPLACE INTO unlocked_prs\n            (id, repository, installation_id, pr_number, unlocked_by, unlocked_at)\n            VALUES (?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "4c1e1c18c1f2ad82c52216ec94184fea1ac5deb8eda53decfa16f6bbc200e791"
+}

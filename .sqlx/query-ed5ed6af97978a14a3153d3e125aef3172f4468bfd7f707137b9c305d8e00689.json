@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT COUNT(*) as count FROM unlocked_prs\n            WHERE installation_id = ? AND repository = ? AND pr_number = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "count",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ed5ed6af97978a14a3153d3e125aef3172f4468bfd7f707137b9c305d8e00689"
+}

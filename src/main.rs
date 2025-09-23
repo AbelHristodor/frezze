@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use tracing::info;
 
-mod cli;
 mod config;
 mod database;
 mod freezer;

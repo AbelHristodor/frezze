@@ -36,6 +36,7 @@ use tracing::info;
 
 pub mod freeze;
 pub mod models;
+pub mod unlocked_pr;
 
 /// Database connection manager for the Frezze application.
 ///

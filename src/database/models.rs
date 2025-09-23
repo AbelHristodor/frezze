@@ -9,7 +9,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-
 /// User role within a repository or organization.
 ///
 /// Defines the level of access and permissions a user has for freeze operations.
@@ -209,4 +208,21 @@ impl FreezeRecord {
             created_at: Utc::now(),
         }
     }
+}
+
+/// Database record representing an unlocked PR during a freeze.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UnlockedPr {
+    /// Unique identifier for this unlock record
+    pub id: String,
+    /// Repository name in "owner/repo" format
+    pub repository: String,
+    /// GitHub App installation ID for this repository
+    pub installation_id: i64,
+    /// PR number that was unlocked
+    pub pr_number: i64,
+    /// GitHub username who unlocked the PR
+    pub unlocked_by: String,
+    /// When the PR was unlocked
+    pub unlocked_at: DateTime<Utc>,
 }
