@@ -180,8 +180,9 @@ The application processes GitHub issue/PR comments for:
 - `/freeze-all` - Freeze all repositories in organization
 - `/unfreeze` - Unfreeze current repository
 - `/unfreeze-all` - Unfreeze all repositories in organization
-- `/freeze-status` - Show current freeze status
-- `/freeze-help` - Show command help
+- `/status` - Show current freeze status
+- `/schedule-freeze` - Schedule freeze for specific time periods
+- `/unlock-pr` - Unlock specific PR during a freeze
 
 ### Duration Formats
 - Simple: `2h`, `30m`, `1d`, `45s`

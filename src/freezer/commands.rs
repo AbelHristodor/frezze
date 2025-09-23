@@ -1,34 +1,35 @@
-///
-///
-/// Simulating input from a chat
-///
-/// ```
-/// let input = "/freeze --duration 3h --reason \"myreason\"";
-///
-/// // Remove the leading slash if present
-/// let input = input.trim_start_matches('/');
-///
-/// // Split the input into arguments
-/// let args = shell_words::split(input).unwrap();
-///
-/// // Prepend a dummy binary name, as clap expects argv[0] to be the program name
-/// let mut argv = vec!["mybin".to_string()];
-/// argv.extend(args);
-///
-/// let cli = Cli::parse_from(argv);
-///
-/// match cli.command {
-///     Command::Freeze(freeze_args) => println!("freeze: {:?}", freeze_args),
-///     Command::FreezeAll(freeze_args) => println!("freeze-all: {:?}", freeze_args),
-///     Command::Unfreeze(unfreeze_args) => println!("unfreeze: {:?}", unfreeze_args),
-///     Command::UnfreezeAll(unfreeze_args) => println!("unfreeze-all: {:?}", unfreeze_args),
-///     Command::Status(status_args) => println!("status: {:?}", status_args),
-///     Command::ScheduleFreeze(schedule_freeze_args) => {
-///         println!("schedule-freeze: {:?}", schedule_freeze_args)
-///     }
-/// }
-/// ```
-///
+//! Command parsing for GitHub comment-based freeze commands.
+//!
+//! This module handles parsing GitHub comment commands into structured command arguments
+//! using the clap parser. It supports all freeze management commands including scheduling,
+//! PR unlocking, and status checking.
+//!
+//! # Supported Commands
+//!
+//! - `/freeze` - Freeze the current repository
+//! - `/freeze-all` - Freeze all repositories in the organization  
+//! - `/unfreeze` - Unfreeze the current repository
+//! - `/unfreeze-all` - Unfreeze all repositories in the organization
+//! - `/status` - Show freeze status for repositories
+//! - `/schedule-freeze` - Schedule a freeze for specific time periods
+//! - `/unlock-pr` - Unlock a specific PR during a freeze
+//!
+//! # Example Usage
+//!
+//! ```
+//! use frezze::freezer::commands::parse;
+//!
+//! let input = "/freeze --duration 3h --reason \"Emergency maintenance\"";
+//! let cli = parse(input).unwrap();
+//!
+//! match cli.command {
+//!     Command::Freeze(freeze_args) => {
+//!         println!("Freezing for {:?}", freeze_args.duration);
+//!         println!("Reason: {:?}", freeze_args.reason);
+//!     }
+//!     _ => {}
+//! }
+//! ```
 use clap::{Parser, Subcommand};
 
 use chrono::{DateTime, Duration, Utc};
@@ -65,14 +66,22 @@ pub struct Cli {
     pub command: Command,
 }
 
+/// All available freeze management commands that can be executed via GitHub comments.
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Freeze the current repository
     Freeze(FreezeArgs),
+    /// Freeze all repositories in the organization
     FreezeAll(FreezeArgs),
+    /// Unfreeze the current repository
     Unfreeze,
+    /// Unfreeze all repositories in the organization
     UnfreezeAll,
+    /// Show freeze status for specified repositories
     Status(StatusArgs),
+    /// Schedule a freeze for a specific time period
     ScheduleFreeze(ScheduleFreezeArgs),
+    /// Unlock a specific PR during a freeze
     UnlockPr(UnlockPrArgs),
 }
 
@@ -113,9 +122,10 @@ pub struct ScheduleFreezeArgs {
     pub reason: Option<String>,
 }
 
+/// Arguments for unlocking a specific PR during a repository freeze.
 #[derive(Args, Debug)]
 pub struct UnlockPrArgs {
-    /// PR number to unlock
+    /// PR number to unlock (if omitted, unlocks the current PR when used in PR comments)
     #[arg(long)]
     pub pr_number: Option<u64>,
 }
