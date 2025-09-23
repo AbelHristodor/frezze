@@ -1,98 +1,100 @@
-# Google Storage Bucket for the function
-resource "google_storage_bucket" "function_bucket" {
-  name                        = "${var.project_id}-function-storage"
-  location                    = var.region
-  uniform_bucket_level_access = true
-  force_destroy               = true
+# Create a Cloud Run service with a Docker image
+resource "google_cloud_run_v2_service" "service" {
+  name     = var.service_name
+  location = var.region
+
+
+  scaling {
+    max_instance_count = 1
+  }
+
+  template {
+    containers {
+      image = var.container_image
+
+      # Resource limits
+      resources {
+        limits = {
+          cpu    = var.cpu
+          memory = var.memory
+        }
+      }
+
+      # Volume mount configuration
+      volume_mounts {
+        name       = "service-data"
+        mount_path = var.volume_mount_path
+      }
+
+      # Environment variables (if needed)
+      dynamic "env" {
+        for_each = var.env_vars
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+    }
+
+    # Volume configuration
+    volumes {
+      name = "service-data"
+
+    }
+
+  }
+
+
+  # Automatically determine traffic behavior
+  traffic {
+    percent = 100
+  }
+
+  # Depends on the service account
+  depends_on = [
+    google_service_account.cloud_run_sa
+  ]
 }
 
-# Persistent Disk for dedicated volume
-resource "google_compute_disk" "function_disk" {
-  name   = "${var.function_name}-disk"
-  type   = "pd-standard"
-  zone   = "${var.region}-a"
-  size   = var.volume_size_gb
-  labels = var.labels
+# Create a Kubernetes Persistent Volume Claim for the volume
+resource "google_persistent_volume_claim" "service_data" {
+  metadata {
+    name = "${var.service_name}-data"
+  }
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    resources {
+      requests = {
+        storage = var.volume_size
+      }
+    }
+  }
 }
 
-# Service Account for the function (if not provided)
-resource "google_service_account" "function_sa" {
-  count        = var.service_account_email == null ? 1 : 0
-  account_id   = "${var.function_name}-sa"
-  display_name = "Service Account for ${var.function_name}"
+# Create a service account for the Cloud Run service
+resource "google_service_account" "cloud_run_sa" {
+  account_id   = "${var.service_name}-sa"
+  display_name = "Service Account for ${var.service_name} Cloud Run Service"
 }
 
-locals {
-  service_account_email = var.service_account_email != null ? var.service_account_email : google_service_account.function_sa[0].email
+# Grant required permissions to the service account
+resource "google_project_iam_member" "cloud_run_sa_permissions" {
+  for_each = toset([
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/cloudtrace.agent",
+  ])
+
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
-# IAM binding for the HTTP invocation
-resource "google_cloud_run_service_iam_member" "invoker" {
-  location = google_cloudfunctions2_function.function.location
-  service  = google_cloudfunctions2_function.function.name
+# Allow unauthenticated invocations (HTTP trigger)
+resource "google_cloud_run_service_iam_member" "public_access" {
+  location = google_cloud_run_service.service.location
+  service  = google_cloud_run_service.service.name
   role     = "roles/run.invoker"
-  member   = "allUsers" # This allows public access - change to specific users/groups for restricted access
+  member   = "allUsers"
 }
 
-# Cloud Function V2 with container image
-resource "google_cloudfunctions2_function" "function" {
-  name        = var.function_name
-  location    = var.region
-  description = var.description
-
-  build_config {
-    runtime     = "managed"
-    entry_point = "handler" # Default entry point, adjust as needed
-
-    source {
-      storage_source {
-        bucket = google_storage_bucket.function_bucket.name
-        object = "source.zip" # This is just a placeholder, as we're using a container image
-      }
-    }
-
-    docker_repository = "projects/${var.project_id}/repos/${var.function_name}-repo"
-    docker_image      = var.container_image
-  }
-
-  service_config {
-    max_instance_count    = var.max_instance_count
-    min_instance_count    = var.min_instance_count
-    available_memory      = "${var.available_memory_mb}M"
-    timeout_seconds       = var.timeout_seconds
-    service_account_email = local.service_account_email
-
-    environment_variables = var.environment_variables
-
-    ingress_settings = var.ingress_settings
-
-    dynamic "vpc_connector" {
-      for_each = var.vpc_connector != null ? [1] : []
-      content {
-        name            = var.vpc_connector
-        egress_settings = var.vpc_connector_egress_settings
-      }
-    }
-
-    # Mount the persistent disk as a volume
-    secret_volumes {
-      mount_path = var.mount_path
-      project_id = var.project_id
-      secret     = google_compute_disk.function_disk.name
-      versions {
-        version = "latest"
-        path    = "/"
-      }
-    }
-  }
-
-  # HTTP Trigger
-  event_trigger {
-    trigger_region        = var.region
-    event_type            = "google.cloud.audit.log.v1.written"
-    retry_policy          = "RETRY_POLICY_DO_NOT_RETRY"
-    service_account_email = local.service_account_email
-  }
-
-  labels = var.labels
-}
