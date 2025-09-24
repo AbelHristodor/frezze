@@ -28,6 +28,8 @@ Built with [Octofer](https://github.com/AbelHristodor/octofer).
 
 ## Demo
 
+<video src="https://github.com/AbelHristodor/frezze/raw/refs/heads/main/.github/assets/demo.mov" height="600" width="400"></video>
+
 ## Commands
 
 All commands are used in GitHub issue or PR comments:
