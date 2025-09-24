@@ -1,10 +1,10 @@
 [package]
 name = "frezze"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
-octofer = "0.0.2"
+octofer = "0.0.3"
 anyhow = "1.0.98"
 axum = { version = "0.8.4", features = ["tracing"] }
 base64 = "0.22.1"

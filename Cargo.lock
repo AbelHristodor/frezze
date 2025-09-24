@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "frezze"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1374,9 +1374,9 @@ dependencies = [
 
 [[package]]
 name = "octofer"
-version = "0.0.2"
+version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a125680beff0fd3315d22b4d911a8500f86ad0843c35a089c8bdc9093af2d89a"
+checksum = "386049b15d97005e9a5575529d33468db2138a4c17644a2ab3799fe4aa510bca"
 dependencies = [
  "anyhow",
  "axum",
