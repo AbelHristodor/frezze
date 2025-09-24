@@ -26,7 +26,7 @@ COPY . .
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin frezze
 
-FROM debian:bookworm AS runtime
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y \
   libssl3 \
