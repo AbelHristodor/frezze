@@ -18,6 +18,8 @@ use crate::{
     repository::Repository,
 };
 
+const FREZZE_CHECK_RUN_NAME: &str = "Frezze";
+
 /// Format freeze information for check run output
 fn format_freeze_details(freeze_record: &FreezeRecord) -> CheckRunOutput {
     let start_time = freeze_record
@@ -515,7 +517,7 @@ async fn create_check_run(
         .app_client()
         .installation(installation_id.into())?
         .checks(owner, repo)
-        .create_check_run("frezze", head_sha)
+        .create_check_run(FREZZE_CHECK_RUN_NAME, head_sha)
         .status(status)
         .conclusion(conclusion)
         .output(output)

@@ -20,9 +20,9 @@ installations:
     # but are overridden by repository-specific permissions
     global_users:
       AbelHristodor:
-        role: contributor
+        role: admin
         can_freeze: true
-        can_unfreeze: false
+        can_unfreeze: true
         can_emergency_override: true
 
     # # Repository-specific permissions

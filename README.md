@@ -26,6 +26,8 @@ Built with [Octofer](https://github.com/AbelHristodor/octofer).
 - **Multiple duration formats** - Support both simple (2h, 30m) and ISO 8601 formats
 - **Real-time status updates** - Check freeze status across multiple repositories
 
+## Demo
+
 ## Commands
 
 All commands are used in GitHub issue or PR comments:
@@ -58,10 +60,12 @@ All commands are used in GitHub issue or PR comments:
 The `/unlock-pr` command allows you to temporarily unlock specific pull requests during a repository freeze, enabling them to be merged despite the freeze restrictions.
 
 **Usage Examples:**
+
 - `/unlock-pr` - Unlock the current PR (when used in a PR comment)
 - `/unlock-pr --pr-number 123` - Unlock PR #123 (can be used from any issue/PR)
 
 **Important Notes:**
+
 - Only works when the repository is currently frozen
 - Requires appropriate permissions (maintainer or admin role)
 - The unlock remains active until the next freeze starts
@@ -72,32 +76,38 @@ The `/unlock-pr` command allows you to temporarily unlock specific pull requests
 ### Common Scenarios
 
 **Emergency freeze during incident:**
+
 ```
 /freeze --duration 2h --reason "Production incident - investigating database issues"
 ```
 
 **Scheduled maintenance window:**
+
 ```
 /schedule-freeze --from "2024-12-01T02:00:00Z" --duration 4h --reason "Database maintenance"
 ```
 
 **Organization-wide code freeze:**
+
 ```
 /freeze-all --duration 1d --reason "End-of-quarter freeze before major release"
 ```
 
 **Quick status check:**
+
 ```
 /status --repos frontend,backend,api
 ```
 
 **Emergency PR during freeze:**
+
 ```
 /unlock-pr --pr-number 456
 # Comment: "Unlocking critical hotfix for production issue"
 ```
 
 **Manual unfreeze:**
+
 ```
 /unfreeze
 # Followed by confirmation comment
