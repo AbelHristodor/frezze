@@ -73,6 +73,7 @@ infrastructure-down-volumes: ## Stop infrastructure and remove volumes
 # Database 
 ########################################################
 migrate: sqlx-cli ## Run database migrations
+	sqlx database create
 	sqlx migrate run
 .PHONY: migrate
 
