@@ -14,6 +14,10 @@ A GitHub App built in Rust that manages repository freezes through comment comma
 
 Built with [Octofer](https://github.com/AbelHristodor/octofer).
 
+## Demo
+
+<video src="https://github.com/user-attachments/assets/a8dd0c8a-00dd-4956-87e1-8e5b947edc61" width="600px" height="400px"></video>
+
 ## Features
 
 - **Comment-based commands** - Control freezes directly from GitHub issues/PRs
