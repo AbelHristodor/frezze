@@ -26,21 +26,11 @@ COPY . .
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin frezze
 
-FROM debian:bookworm-slim AS runtime
+FROM gcr.io/distroless/cc-debian12
 
-RUN apt-get update && apt-get install -y \
-  libssl3 \
-  ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/frezze /
+COPY --from=builder /app/migrations /migrations
 
-WORKDIR /app
+ENV MIGRATIONS_PATH=/migrations
 
-# Create db directory for SQLite database
-RUN mkdir -p /app/db
-
-COPY --from=builder /app/target/release/frezze /usr/local/bin
-COPY --from=builder /app/migrations /app/migrations
-
-ENV MIGRATIONS_PATH=/app/migrations
-
-ENTRYPOINT ["/usr/local/bin/frezze"]
+ENTRYPOINT ["/frezze"]
