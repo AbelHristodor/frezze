@@ -188,6 +188,8 @@ PERMISSIONS_PATH=users.yaml # check PERMISSIONS.md
 PORT=3000
 ```
 
+Make sure to check [PERMISSIONS.md](./PERMISSIONS.md) for more information regarding the permission system.
+
 ## Development
 
 ### Available Make Commands
