@@ -6,8 +6,8 @@
 //!
 //! # Supported Commands
 //!
-//! - `/freeze` - Freeze the current repository
-//! - `/freeze-all` - Freeze all repositories in the organization  
+//! - `/freeze` - Freeze the current repository or specific repositories with `--repo`
+//! - `/freeze-all` - Freeze all repositories in the organization or specific repositories with `--repo`
 //! - `/unfreeze` - Unfreeze the current repository
 //! - `/unfreeze-all` - Unfreeze all repositories in the organization
 //! - `/status` - Show freeze status for repositories
@@ -26,6 +26,18 @@
 //!     Command::Freeze(freeze_args) => {
 //!         println!("Freezing for {:?}", freeze_args.duration);
 //!         println!("Reason: {:?}", freeze_args.reason);
+//!     }
+//!     _ => {}
+//! }
+//!
+//! // Freeze specific repositories
+//! let input = "/freeze --repo owner/repo1,owner/repo2 --duration 2h";
+//! let cli = parse(input).unwrap();
+//!
+//! match cli.command {
+//!     Command::Freeze(freeze_args) => {
+//!         println!("Repos to freeze: {:?}", freeze_args.repos);
+//!         println!("Duration: {:?}", freeze_args.duration);
 //!     }
 //!     _ => {}
 //! }
@@ -69,9 +81,9 @@ pub struct Cli {
 /// All available freeze management commands that can be executed via GitHub comments.
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Freeze the current repository
+    /// Freeze the current repository or specific repositories with --repo
     Freeze(FreezeArgs),
-    /// Freeze all repositories in the organization
+    /// Freeze all repositories in the organization or specific repositories with --repo
     FreezeAll(FreezeArgs),
     /// Unfreeze the current repository
     Unfreeze,
