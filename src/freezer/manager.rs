@@ -133,7 +133,23 @@ impl FreezeManager {
         reason: Option<String>,
         initiated_by: String,
         issue_nr: u64,
+        repos: Vec<String>,
     ) {
+        // If repos are specified, this is a multi-repo freeze command
+        if !repos.is_empty() {
+            self.freeze_repos(
+                installation_id,
+                duration,
+                reason,
+                initiated_by,
+                issue_nr,
+                repos,
+            )
+            .await;
+            return;
+        }
+
+        // Otherwise, freeze the current repository
         let outcome = match self
             .handle_freeze(installation_id, repository, duration, reason, initiated_by)
             .await
@@ -232,7 +248,22 @@ impl FreezeManager {
         reason: Option<String>,
         initiated_by: String,
         issue_nr: u64,
+        repos: Vec<String>,
     ) {
+        // If specific repos are provided, filter to those repos only
+        if !repos.is_empty() {
+            self.freeze_repos(
+                installation_id,
+                duration,
+                reason,
+                initiated_by,
+                issue_nr,
+                repos,
+            )
+            .await;
+            return;
+        }
+
         // Get all repositories for this installation
         let repositories = match self.get_installation_repositories(installation_id).await {
             Ok(repos) => repos,
@@ -298,6 +329,88 @@ impl FreezeManager {
         if let Some(first_repo) = repositories.first() {
             let repository =
                 Repository::new(&first_repo.owner.as_ref().unwrap().login, &first_repo.name);
+            self.notify_comment_issue(installation_id, &repository, issue_nr, &outcome)
+                .await;
+        }
+    }
+
+    async fn freeze_repos(
+        &self,
+        installation_id: u64,
+        duration: Option<chrono::Duration>,
+        reason: Option<String>,
+        initiated_by: String,
+        issue_nr: u64,
+        repo_names: Vec<String>,
+    ) {
+        let mut successful_freezes = 0;
+        let mut failed_freezes = 0;
+        let mut error_messages = Vec::new();
+        let mut first_repository = None;
+
+        for repo_name in &repo_names {
+            // Parse repository name (expecting format "owner/repo" or just "repo")
+            let repository = if repo_name.contains('/') {
+                let parts: Vec<&str> = repo_name.split('/').collect();
+                if parts.len() != 2 {
+                    failed_freezes += 1;
+                    let error = format!("Invalid repository format: {}", repo_name);
+                    error_messages.push(error.clone());
+                    error!("{}", error);
+                    continue;
+                }
+                Repository::new(parts[0], parts[1])
+            } else {
+                // If no owner specified, we can't determine the repository
+                failed_freezes += 1;
+                let error = format!(
+                    "Invalid repository format '{}'. Expected 'owner/repo'",
+                    repo_name
+                );
+                error_messages.push(error.clone());
+                error!("{}", error);
+                continue;
+            };
+
+            if first_repository.is_none() {
+                first_repository = Some(repository.clone());
+            }
+
+            match self
+                .handle_freeze(
+                    installation_id,
+                    &repository,
+                    duration,
+                    reason.clone(),
+                    initiated_by.clone(),
+                )
+                .await
+            {
+                Ok(_) => {
+                    successful_freezes += 1;
+                    info!("Successfully froze repository: {}", repository.full_name());
+                }
+                Err(e) => {
+                    failed_freezes += 1;
+                    let error = format!("Failed to freeze {}: {}", repository.full_name(), e);
+                    error_messages.push(error.clone());
+                    error!("{}", error);
+                }
+            }
+        }
+
+        let outcome = if failed_freezes == 0 {
+            messages::freeze_all_success(successful_freezes)
+        } else {
+            messages::freeze_all_partial_success(
+                successful_freezes,
+                failed_freezes,
+                &error_messages,
+            )
+        };
+
+        // Comment on the first repository (or the one that triggered the command)
+        if let Some(repository) = first_repository {
             self.notify_comment_issue(installation_id, &repository, issue_nr, &outcome)
                 .await;
         }
