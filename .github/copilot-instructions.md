@@ -7,7 +7,7 @@ Always reference these instructions first and fallback to search or bash command
 ## Working Effectively
 
 ### Prerequisites and Environment Setup
-- Rust 1.70+ is required (rustc 1.89.0+ is available in this environment)
+- Rust 1.70+ is required (rustc 1.90.0+ is available in this environment)
 - SQLite is used for data storage (included with Rust build)
 - Docker is available for infrastructure
 - sqlx-cli must be installed for database migrations
@@ -56,7 +56,7 @@ Run these commands in order for a fresh setup:
   ```bash
   cargo test
   ```
-  - 20 unit tests, all should pass
+  - 42 unit tests, all should pass
   - Set timeout to 1+ minute for safety
 
 - **Run Linter** (takes ~4 seconds):
