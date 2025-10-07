@@ -56,6 +56,8 @@ All commands are used in GitHub issue or PR comments:
 - `/schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h` - Schedule freeze
 - `/status --repos repo1,repo2` - Check status for specific repositories
 - `/unlock-pr --pr-number 123` - Unlock specific PR by number
+- `/unlock-pr --reason "emergency"` - Unlock current PR with reason
+- `/unfreeze --reason "Issue resolved"` - Unfreeze with reason
 
 ### Duration Formats
 
@@ -70,6 +72,7 @@ The `/unlock-pr` command allows you to temporarily unlock specific pull requests
 
 - `/unlock-pr` - Unlock the current PR (when used in a PR comment)
 - `/unlock-pr --pr-number 123` - Unlock PR #123 (can be used from any issue/PR)
+- `/unlock-pr --pr-number 123 --reason "Critical security fix"` - Unlock with reason
 
 **Important Notes:**
 
@@ -121,15 +124,13 @@ or using multiple --repo flags:
 **Emergency PR during freeze:**
 
 ```
-/unlock-pr --pr-number 456
-# Comment: "Unlocking critical hotfix for production issue"
+/unlock-pr --pr-number 456 --reason "Critical hotfix for production issue"
 ```
 
 **Manual unfreeze:**
 
 ```
-/unfreeze
-# Followed by confirmation comment
+/unfreeze --reason "Issue resolved"
 ```
 
 ## PR Refresh System

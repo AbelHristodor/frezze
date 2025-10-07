@@ -86,7 +86,7 @@ pub enum Command {
     /// Freeze all repositories in the organization or specific repositories with --repo
     FreezeAll(FreezeArgs),
     /// Unfreeze the current repository
-    Unfreeze,
+    Unfreeze(UnfreezeArgs),
     /// Unfreeze all repositories in the organization
     UnfreezeAll,
     /// Show freeze status for specified repositories
@@ -120,6 +120,13 @@ pub struct StatusArgs {
 }
 
 #[derive(Args, Debug)]
+pub struct UnfreezeArgs {
+    /// Reason for unfreezing, optional
+    #[arg(long)]
+    pub reason: Option<String>,
+}
+
+#[derive(Args, Debug)]
 pub struct ScheduleFreezeArgs {
     /// Start datetime for freeze (RFC3339 format)
     #[arg(long, value_parser = parse_datetime)]
@@ -144,6 +151,10 @@ pub struct UnlockPrArgs {
     /// PR number to unlock (if omitted, unlocks the current PR when used in PR comments)
     #[arg(long)]
     pub pr_number: Option<u64>,
+
+    /// Reason for unlocking, optional
+    #[arg(long)]
+    pub reason: Option<String>,
 }
 
 fn parse_datetime(s: &str) -> Result<DateTime<Utc>, String> {
@@ -434,10 +445,21 @@ mod tests {
 
     #[test]
     fn test_unfreeze_command() {
-        // Basic unfreeze
+        // Basic unfreeze without reason
         let cli = parse_cli(&["unfreeze"]);
         match cli.command {
-            Command::Unfreeze => {}
+            Command::Unfreeze(args) => {
+                assert!(args.reason.is_none());
+            }
+            _ => panic!("Expected Unfreeze command"),
+        }
+
+        // Unfreeze with reason
+        let cli = parse_cli(&["unfreeze", "--reason", "emergency resolved"]);
+        match cli.command {
+            Command::Unfreeze(args) => {
+                assert_eq!(args.reason.unwrap(), "emergency resolved");
+            }
             _ => panic!("Expected Unfreeze command"),
         }
     }
@@ -525,5 +547,54 @@ mod tests {
             parse_duration_2("P1DT2H30M").unwrap(),
             Duration::days(1) + Duration::hours(2) + Duration::minutes(30)
         );
+    }
+
+    #[test]
+    fn test_unlock_pr_command() {
+        // Basic unlock-pr without arguments
+        let cli = parse_cli(&["unlock-pr"]);
+        match cli.command {
+            Command::UnlockPr(args) => {
+                assert!(args.pr_number.is_none());
+                assert!(args.reason.is_none());
+            }
+            _ => panic!("Expected UnlockPr command"),
+        }
+
+        // Unlock-pr with pr-number
+        let cli = parse_cli(&["unlock-pr", "--pr-number", "123"]);
+        match cli.command {
+            Command::UnlockPr(args) => {
+                assert_eq!(args.pr_number.unwrap(), 123);
+                assert!(args.reason.is_none());
+            }
+            _ => panic!("Expected UnlockPr command"),
+        }
+
+        // Unlock-pr with reason
+        let cli = parse_cli(&["unlock-pr", "--reason", "emergency fix"]);
+        match cli.command {
+            Command::UnlockPr(args) => {
+                assert!(args.pr_number.is_none());
+                assert_eq!(args.reason.unwrap(), "emergency fix");
+            }
+            _ => panic!("Expected UnlockPr command"),
+        }
+
+        // Unlock-pr with both pr-number and reason
+        let cli = parse_cli(&[
+            "unlock-pr",
+            "--pr-number",
+            "456",
+            "--reason",
+            "critical hotfix",
+        ]);
+        match cli.command {
+            Command::UnlockPr(args) => {
+                assert_eq!(args.pr_number.unwrap(), 456);
+                assert_eq!(args.reason.unwrap(), "critical hotfix");
+            }
+            _ => panic!("Expected UnlockPr command"),
+        }
     }
 }
