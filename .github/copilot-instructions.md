@@ -4,6 +4,60 @@ Frezze is a GitHub App built in Rust that manages repository freezes through com
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
+## Task Suitability Guidelines
+
+### Good Tasks for Copilot
+These tasks are well-suited for automated assistance:
+- **Bug fixes**: Fixing specific bugs with clear reproduction steps
+- **Test coverage**: Adding or improving unit tests for existing functionality
+- **Documentation updates**: Updating README, comments, or documentation files
+- **Code formatting**: Applying consistent formatting and style fixes
+- **Refactoring**: Improving code structure while maintaining functionality
+- **Adding command options**: Extending existing commands with new flags or parameters
+- **Database migrations**: Creating new migrations for schema changes
+
+### Tasks Requiring Careful Review
+These tasks may need more human oversight:
+- **Security-sensitive changes**: Authentication, authorization, or cryptographic code
+- **Core freeze logic**: Changes to the fundamental freeze/unfreeze mechanisms
+- **GitHub API integration**: Complex interactions with GitHub's API
+- **Database schema design**: Major changes to the database structure
+- **Permission system**: Changes to role-based access control logic
+
+### Tasks to Avoid
+These tasks are better handled by human developers:
+- **Architectural decisions**: Major changes to system design or component interactions
+- **Business logic design**: Defining new freeze behaviors or policies
+- **Complex algorithm design**: Sophisticated scheduling or optimization logic
+
+## Security Considerations
+
+When working on this codebase, always keep these security principles in mind:
+
+### Credentials and Secrets
+- **NEVER** commit secrets, API keys, or credentials to the repository
+- **ALWAYS** use environment variables for sensitive configuration (see `.env.example`)
+- GitHub App private keys should be stored securely and referenced by path
+- Use `.gitignore` to prevent accidentally committing sensitive files
+
+### Code Security
+- **Validate all user inputs** from GitHub webhooks and commands
+- **Use parameterized queries** for database operations (sqlx handles this)
+- **Follow Rust security best practices**: avoid unsafe code unless absolutely necessary
+- **Review dependencies** for known vulnerabilities using `cargo audit` if available
+
+### GitHub Integration Security
+- **Verify webhook signatures** (handled by the octofer framework)
+- **Use least-privilege access** when making GitHub API calls
+- **Validate repository permissions** before performing operations
+- **Implement proper error handling** to avoid leaking sensitive information
+
+### Permission System Security
+- Default-deny policy: users without configured permissions are blocked
+- Role-based access control defined in YAML configuration files
+- All permission checks are logged for audit purposes
+- Validate configuration files on startup to catch errors early
+
 ## Working Effectively
 
 ### Prerequisites and Environment Setup
@@ -159,7 +213,7 @@ The server expects:
 - **First `cargo build`**: ~2 minutes (set 3+ minute timeout)
 - **Subsequent builds**: ~3 seconds
 - **Database migrations**: <1 second
-- **Tests**: ~4 seconds first compile + <1 second run (20 tests)
+- **Tests**: ~4 seconds first compile + <1 second run (42 tests)
 - **Clippy linting**: ~1.2 minutes first run, ~4 seconds subsequent
 - **Format checking**: <1 second
 
