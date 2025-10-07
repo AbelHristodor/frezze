@@ -6,8 +6,8 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
-use octocrab::params::checks::{CheckRunConclusion, CheckRunOutput, CheckRunStatus};
 use octofer::github::{GitHubClient, models::checks::CheckRun, pulls::PullRequest};
+use octofer::octocrab::params::checks::{CheckRunConclusion, CheckRunOutput, CheckRunStatus};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -261,7 +261,7 @@ impl PrRefreshService {
                 let page = client
                     .pulls(owner, repo)
                     .list()
-                    .state(octocrab::params::State::Open)
+                    .state(octofer::octocrab::params::State::Open)
                     .per_page(100)
                     .send()
                     .await

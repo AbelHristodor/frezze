@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use octocrab::models::webhook_events::WebhookEventPayload;
+use octofer::octocrab::models::webhook_events::WebhookEventPayload;
 use tracing::{error, info};
 
 use crate::{

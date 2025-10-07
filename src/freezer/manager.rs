@@ -11,6 +11,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use octofer::github::GitHubClient;
+use octofer::octocrab;
 use tracing::{error, info, warn};
 
 use super::pr_refresh::PrRefreshService;

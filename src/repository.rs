@@ -1,3 +1,5 @@
+use octofer::octocrab;
+
 /// Represents a GitHub repository with owner and name components.
 ///
 /// This struct ensures consistent handling of repository identifiers throughout
