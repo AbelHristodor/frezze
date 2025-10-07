@@ -16,7 +16,8 @@ use crate::{
 
 /// Helper function to parse SQLite datetime string to DateTime<Utc>
 fn parse_datetime(datetime_str: &str) -> anyhow::Result<DateTime<Utc>> {
-    datetime_str.parse::<DateTime<Utc>>()
+    datetime_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| anyhow::anyhow!("Failed to parse datetime: {}", e))
 }
 

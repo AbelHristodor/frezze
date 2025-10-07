@@ -37,7 +37,9 @@ All commands are used in GitHub issue or PR comments:
 ### Basic Commands
 
 - `/freeze` - Freeze current repository
+- `/freeze --repo owner/repo1,owner/repo2` - Freeze specific repositories
 - `/freeze-all` - Freeze all repositories in organization
+- `/freeze-all --repo owner/repo1,owner/repo2` - Freeze specific repositories
 - `/unfreeze` - Unfreeze current repository  
 - `/unfreeze-all` - Unfreeze all repositories in organization
 - `/status` - Show current freeze status
@@ -48,6 +50,9 @@ All commands are used in GitHub issue or PR comments:
 - `/freeze --duration 2h` - Freeze for 2 hours
 - `/freeze --reason "Release v1.2.3"` - Freeze with reason
 - `/freeze --duration 1d --reason "Emergency maintenance"` - Combined options
+- `/freeze --repo owner/repo1,owner/repo2 --duration 2h` - Freeze specific repos for 2 hours
+- `/freeze --repo owner/repo1 --repo owner/repo2` - Freeze multiple repos using separate flags
+- `/freeze-all --repo owner/repo1,owner/repo2` - Freeze only specific repos instead of all
 - `/schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h` - Schedule freeze
 - `/status --repos repo1,repo2` - Check status for specific repositories
 - `/unlock-pr --pr-number 123` - Unlock specific PR by number
@@ -93,6 +98,18 @@ The `/unlock-pr` command allows you to temporarily unlock specific pull requests
 
 ```
 /freeze-all --duration 1d --reason "End-of-quarter freeze before major release"
+```
+
+**Freeze specific repositories:**
+
+```
+/freeze --repo owner/frontend,owner/backend --duration 3h --reason "Deployment in progress"
+```
+
+or using multiple --repo flags:
+
+```
+/freeze-all --repo owner/repo1 --repo owner/repo2 --duration 2h
 ```
 
 **Quick status check:**

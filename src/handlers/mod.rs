@@ -122,6 +122,7 @@ pub async fn issue_comment_handler(
                         freeze_args.reason,
                         author,
                         issue_nr,
+                        freeze_args.repos,
                     )
                     .await;
                 }
@@ -132,6 +133,7 @@ pub async fn issue_comment_handler(
                         freeze_args.reason,
                         author,
                         issue_nr,
+                        freeze_args.repos,
                     )
                     .await;
                 }

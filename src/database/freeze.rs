@@ -11,7 +11,8 @@ use crate::database::models::{FreezeRecord, FreezeStatus};
 
 /// Helper function to parse SQLite datetime string to DateTime<Utc>
 fn parse_datetime(datetime_str: &str) -> Result<DateTime<Utc>> {
-    datetime_str.parse::<DateTime<Utc>>()
+    datetime_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| anyhow::anyhow!("Failed to parse datetime: {}", e))
 }
 
@@ -272,12 +273,9 @@ impl FreezeRecord {
 
         if result.rows_affected() > 0 {
             // Fetch the updated record
-            let row = sqlx::query!(
-                "SELECT * FROM freeze_records WHERE id = $1",
-                id
-            )
-            .fetch_optional(pool)
-            .await?;
+            let row = sqlx::query!("SELECT * FROM freeze_records WHERE id = $1", id)
+                .fetch_optional(pool)
+                .await?;
 
             match row {
                 Some(row) => Ok(Some(FreezeRecord {

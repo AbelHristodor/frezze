@@ -6,8 +6,8 @@
 //!
 //! # Supported Commands
 //!
-//! - `/freeze` - Freeze the current repository
-//! - `/freeze-all` - Freeze all repositories in the organization  
+//! - `/freeze` - Freeze the current repository or specific repositories with `--repo`
+//! - `/freeze-all` - Freeze all repositories in the organization or specific repositories with `--repo`
 //! - `/unfreeze` - Unfreeze the current repository
 //! - `/unfreeze-all` - Unfreeze all repositories in the organization
 //! - `/status` - Show freeze status for repositories
@@ -26,6 +26,18 @@
 //!     Command::Freeze(freeze_args) => {
 //!         println!("Freezing for {:?}", freeze_args.duration);
 //!         println!("Reason: {:?}", freeze_args.reason);
+//!     }
+//!     _ => {}
+//! }
+//!
+//! // Freeze specific repositories
+//! let input = "/freeze --repo owner/repo1,owner/repo2 --duration 2h";
+//! let cli = parse(input).unwrap();
+//!
+//! match cli.command {
+//!     Command::Freeze(freeze_args) => {
+//!         println!("Repos to freeze: {:?}", freeze_args.repos);
+//!         println!("Duration: {:?}", freeze_args.duration);
 //!     }
 //!     _ => {}
 //! }
@@ -69,9 +81,9 @@ pub struct Cli {
 /// All available freeze management commands that can be executed via GitHub comments.
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Freeze the current repository
+    /// Freeze the current repository or specific repositories with --repo
     Freeze(FreezeArgs),
-    /// Freeze all repositories in the organization
+    /// Freeze all repositories in the organization or specific repositories with --repo
     FreezeAll(FreezeArgs),
     /// Unfreeze the current repository
     Unfreeze,
@@ -94,6 +106,10 @@ pub struct FreezeArgs {
     /// Reason for freezing, optional
     #[arg(long)]
     pub reason: Option<String>,
+
+    /// List of repositories to freeze (supports comma-separated values or multiple --repo flags)
+    #[arg(long = "repo", value_delimiter = ',')]
+    pub repos: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -278,6 +294,7 @@ mod tests {
             Command::Freeze(args) => {
                 assert!(args.duration.is_none());
                 assert!(args.reason.is_none());
+                assert!(args.repos.is_empty());
             }
             _ => panic!("Expected Freeze command"),
         }
@@ -288,6 +305,7 @@ mod tests {
             Command::Freeze(args) => {
                 assert_eq!(args.duration.unwrap(), Duration::hours(2));
                 assert!(args.reason.is_none());
+                assert!(args.repos.is_empty());
             }
             _ => panic!("Expected Freeze command"),
         }
@@ -298,6 +316,7 @@ mod tests {
             Command::Freeze(args) => {
                 assert!(args.duration.is_none());
                 assert_eq!(args.reason.unwrap(), "maintenance");
+                assert!(args.repos.is_empty());
             }
             _ => panic!("Expected Freeze command"),
         }
@@ -308,6 +327,59 @@ mod tests {
             Command::Freeze(args) => {
                 assert_eq!(args.duration.unwrap(), Duration::hours(2));
                 assert_eq!(args.reason.unwrap(), "maintenance");
+                assert!(args.repos.is_empty());
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+
+        // Freeze with single repo
+        let cli = parse_cli(&["freeze", "--repo", "repo1"]);
+        match cli.command {
+            Command::Freeze(args) => {
+                assert!(args.duration.is_none());
+                assert!(args.reason.is_none());
+                assert_eq!(args.repos, vec!["repo1"]);
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+
+        // Freeze with comma-separated repos
+        let cli = parse_cli(&["freeze", "--repo", "repo1,repo2,repo3"]);
+        match cli.command {
+            Command::Freeze(args) => {
+                assert!(args.duration.is_none());
+                assert!(args.reason.is_none());
+                assert_eq!(args.repos, vec!["repo1", "repo2", "repo3"]);
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+
+        // Freeze with multiple --repo flags
+        let cli = parse_cli(&["freeze", "--repo", "repo1", "--repo", "repo2"]);
+        match cli.command {
+            Command::Freeze(args) => {
+                assert!(args.duration.is_none());
+                assert!(args.reason.is_none());
+                assert_eq!(args.repos, vec!["repo1", "repo2"]);
+            }
+            _ => panic!("Expected Freeze command"),
+        }
+
+        // Freeze with repos and other options
+        let cli = parse_cli(&[
+            "freeze",
+            "--duration",
+            "2h",
+            "--reason",
+            "maintenance",
+            "--repo",
+            "repo1,repo2",
+        ]);
+        match cli.command {
+            Command::Freeze(args) => {
+                assert_eq!(args.duration.unwrap(), Duration::hours(2));
+                assert_eq!(args.reason.unwrap(), "maintenance");
+                assert_eq!(args.repos, vec!["repo1", "repo2"]);
             }
             _ => panic!("Expected Freeze command"),
         }
@@ -321,6 +393,40 @@ mod tests {
             Command::FreezeAll(args) => {
                 assert_eq!(args.duration.unwrap(), Duration::days(1));
                 assert_eq!(args.reason.unwrap(), "upgrade");
+                assert!(args.repos.is_empty());
+            }
+            _ => panic!("Expected FreezeAll command"),
+        }
+
+        // FreezeAll with single repo
+        let cli = parse_cli(&["freeze-all", "--repo", "repo1"]);
+        match cli.command {
+            Command::FreezeAll(args) => {
+                assert!(args.duration.is_none());
+                assert!(args.reason.is_none());
+                assert_eq!(args.repos, vec!["repo1"]);
+            }
+            _ => panic!("Expected FreezeAll command"),
+        }
+
+        // FreezeAll with comma-separated repos
+        let cli = parse_cli(&["freeze-all", "--repo", "repo1,repo2,repo3"]);
+        match cli.command {
+            Command::FreezeAll(args) => {
+                assert!(args.duration.is_none());
+                assert!(args.reason.is_none());
+                assert_eq!(args.repos, vec!["repo1", "repo2", "repo3"]);
+            }
+            _ => panic!("Expected FreezeAll command"),
+        }
+
+        // FreezeAll with multiple --repo flags
+        let cli = parse_cli(&["freeze-all", "--repo", "repo1", "--repo", "repo2"]);
+        match cli.command {
+            Command::FreezeAll(args) => {
+                assert!(args.duration.is_none());
+                assert!(args.reason.is_none());
+                assert_eq!(args.repos, vec!["repo1", "repo2"]);
             }
             _ => panic!("Expected FreezeAll command"),
         }
