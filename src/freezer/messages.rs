@@ -130,10 +130,10 @@ pub fn freeze_error(error: &str) -> String {
 }
 
 /// Success message for repository unfreeze operation
-pub fn unfreeze_success(repository: &str) -> String {
+pub fn unfreeze_success(repository: &str, reason_str: &str) -> String {
     format!(
         "## 🌞 Repository Unfrozen\n\n\
-        ✅ **Repository `{repository}` has been unfrozen**\n\n\
+        ✅ **Repository `{repository}` has been unfrozen**{reason_str}\n\n\
         > 🎉 **All systems go**: Pull requests and pushes are now allowed.\n\n\
         *The freeze has been successfully lifted.*"
     )
@@ -201,10 +201,10 @@ pub fn permission_check_failed(username: &str, error: &str) -> String {
 }
 
 /// Format success message for PR unlock
-pub fn pr_unlock_success(pr_number: u64) -> String {
+pub fn pr_unlock_success(pr_number: u64, reason_str: &str) -> String {
     format!(
-        "## ✅ PR Unlocked Successfully\n\n🔓 **PR #{} has been unlocked**\n\nThis PR can now be merged despite the repository freeze. The unlock will remain active until the next freeze starts.",
-        pr_number
+        "## ✅ PR Unlocked Successfully\n\n🔓 **PR #{} has been unlocked**{}\n\nThis PR can now be merged despite the repository freeze. The unlock will remain active until the next freeze starts.",
+        pr_number, reason_str
     )
 }
 
@@ -276,10 +276,16 @@ mod tests {
 
     #[test]
     fn test_unfreeze_success_message() {
-        let msg = unfreeze_success("owner/repo");
+        let msg = unfreeze_success("owner/repo", "");
         assert!(msg.contains("Repository Unfrozen"));
         assert!(msg.contains("owner/repo"));
         assert!(msg.contains("🌞"));
+
+        // Test with reason
+        let msg_with_reason = unfreeze_success("owner/repo", "\n\n**Reason**: _Issue resolved_");
+        assert!(msg_with_reason.contains("Repository Unfrozen"));
+        assert!(msg_with_reason.contains("owner/repo"));
+        assert!(msg_with_reason.contains("Issue resolved"));
     }
 
     #[test]

@@ -225,7 +225,7 @@ impl PermissionService {
                     ))
                 }
             }
-            Command::Unfreeze => {
+            Command::Unfreeze(_) => {
                 if self.can_unfreeze(&role, user_permissions) {
                     PermissionResult::Allowed
                 } else {

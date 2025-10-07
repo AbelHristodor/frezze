@@ -525,13 +525,17 @@ impl FreezeManager {
         installation_id: u64,
         repository: &Repository,
         ended_by: String,
+        reason: Option<String>,
         issue_nr: u64,
     ) {
         let outcome = match self
             .handle_unfreeze(installation_id, repository, ended_by)
             .await
         {
-            Ok(_) => messages::unfreeze_success(&repository.to_string()),
+            Ok(_) => {
+                let reason_str = messages::format_reason_display(reason);
+                messages::unfreeze_success(&repository.to_string(), &reason_str)
+            }
             Err(e) => {
                 tracing::error!("Failed to unfreeze repository: {:?}", e);
                 messages::unfreeze_error(&e.to_string())
@@ -640,6 +644,7 @@ impl FreezeManager {
         repository: &Repository,
         pr_number: u64,
         author: String,
+        reason: Option<String>,
         issue_nr: u64,
     ) {
         let repo_name = repository.full_name();
@@ -661,7 +666,8 @@ impl FreezeManager {
                 .await
                 {
                     Ok(_) => {
-                        let success_msg = messages::pr_unlock_success(pr_number);
+                        let reason_str = messages::format_reason_display(reason);
+                        let success_msg = messages::pr_unlock_success(pr_number, &reason_str);
                         self.notify_comment_issue(
                             installation_id,
                             repository,

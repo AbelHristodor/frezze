@@ -135,9 +135,15 @@ pub async fn issue_comment_handler(
                     )
                     .await;
                 }
-                commands::Command::Unfreeze => {
-                    mng.unfreeze(installation_id, &repo.into(), author, issue_nr)
-                        .await;
+                commands::Command::Unfreeze(unfreeze_args) => {
+                    mng.unfreeze(
+                        installation_id,
+                        &repo.into(),
+                        author,
+                        unfreeze_args.reason,
+                        issue_nr,
+                    )
+                    .await;
                 }
                 commands::Command::UnfreezeAll => {
                     mng.unfreeze_all(installation_id, author, issue_nr).await;
@@ -229,6 +235,7 @@ pub async fn issue_comment_handler(
                         &repository.into(),
                         pr_number,
                         author,
+                        unlock_pr_args.reason,
                         issue_nr,
                     )
                     .await;
