@@ -14,6 +14,16 @@
 //! - `/schedule-freeze` - Schedule a freeze for specific time periods
 //! - `/unlock-pr` - Unlock a specific PR during a freeze
 //!
+//! # Branch-based Freezes
+//!
+//! All freeze commands support an optional `--branch` flag to restrict the freeze to a specific branch:
+//!
+//! - `/freeze --branch main` - Freeze only PRs targeting the main branch
+//! - `/freeze-all --branch main` - Freeze main branch across all repositories
+//! - `/unfreeze --branch main` - Unfreeze only the main branch
+//!
+//! When `--branch` is not specified, the freeze applies to all branches (backward compatible behavior).
+//!
 //! # Example Usage
 //!
 //! ```
@@ -81,17 +91,17 @@ pub struct Cli {
 /// All available freeze management commands that can be executed via GitHub comments.
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Freeze the current repository or specific repositories with --repo
+    /// Freeze the current repository or specific repositories with --repo. Optionally freeze only a specific branch with --branch.
     Freeze(FreezeArgs),
-    /// Freeze all repositories in the organization or specific repositories with --repo
+    /// Freeze all repositories in the organization or specific repositories with --repo. Optionally freeze only a specific branch with --branch.
     FreezeAll(FreezeArgs),
-    /// Unfreeze the current repository
+    /// Unfreeze the current repository. Optionally unfreeze only a specific branch with --branch.
     Unfreeze(UnfreezeArgs),
     /// Unfreeze all repositories in the organization
     UnfreezeAll,
     /// Show freeze status for specified repositories
     Status(StatusArgs),
-    /// Schedule a freeze for a specific time period
+    /// Schedule a freeze for a specific time period. Optionally schedule for a specific branch with --branch.
     ScheduleFreeze(ScheduleFreezeArgs),
     /// Unlock a specific PR during a freeze
     UnlockPr(UnlockPrArgs),
