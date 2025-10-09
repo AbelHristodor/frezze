@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO freeze_records \n            (id, repository, installation_id, started_at, expires_at, ended_at, reason, initiated_by, ended_by, status, branch, created_at)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "40ecb12e456663f44bc090e33d560813dd817b509173029c7da26821de8e0917"
+}

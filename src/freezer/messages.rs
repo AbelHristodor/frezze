@@ -5,10 +5,10 @@
 //
 
 /// Success message for repository freeze operation
-pub fn freeze_success(repository: &str, duration_str: &str, reason_str: &str) -> String {
+pub fn freeze_success(repository: &str, duration_str: &str, reason_str: &str, branch_str: &str) -> String {
     format!(
         "## ❄️ Repository Frozen\n\n\
-        🔒 **Repository `{repository}` has been frozen**{duration_str}{reason_str}\n\n\
+        🔒 **Repository `{repository}` has been frozen**{branch_str}{duration_str}{reason_str}\n\n\
         > 🚨 **Important**: All pull requests and pushes are now blocked until the freeze is lifted.\n\n\
         *Use `/unfreeze` to lift the freeze when ready.*"
     )
@@ -93,8 +93,8 @@ pub fn format_status_table(entries: Vec<(String, super::manager::StatusEntry)>) 
     use super::manager::FreezeStatus;
 
     let mut table = String::from("## 📊 Repository Freeze Status\n\n");
-    table.push_str("| Repository | Status | Duration | Start | End | Reason |\n");
-    table.push_str("|------------|--------|----------|-------|-----|--------|\n");
+    table.push_str("| Repository | Status | Branch | Duration | Start | End | Reason |\n");
+    table.push_str("|------------|--------|--------|----------|-------|-----|--------|\n");
 
     for (repo_name, entry) in entries {
         let status = match entry.freeze_status {
@@ -104,14 +104,15 @@ pub fn format_status_table(entries: Vec<(String, super::manager::StatusEntry)>) 
             FreezeStatus::Error(ref err) => &format!("❌ Error: {}", err),
         };
 
+        let branch = entry.branch.unwrap_or_else(|| "All".to_string());
         let duration = entry.duration.unwrap_or_else(|| "-".to_string());
         let start = entry.start.unwrap_or_else(|| "-".to_string());
         let end = entry.end.unwrap_or_else(|| "-".to_string());
         let reason = entry.reason.unwrap_or_else(|| "-".to_string());
 
         table.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} |\n",
-            repo_name, status, duration, start, end, reason
+            "| {} | {} | {} | {} | {} | {} | {} |\n",
+            repo_name, status, branch, duration, start, end, reason
         ));
     }
 
@@ -130,10 +131,10 @@ pub fn freeze_error(error: &str) -> String {
 }
 
 /// Success message for repository unfreeze operation
-pub fn unfreeze_success(repository: &str, reason_str: &str) -> String {
+pub fn unfreeze_success(repository: &str, reason_str: &str, branch_str: &str) -> String {
     format!(
         "## 🌞 Repository Unfrozen\n\n\
-        ✅ **Repository `{repository}` has been unfrozen**{reason_str}\n\n\
+        ✅ **Repository `{repository}` has been unfrozen**{branch_str}{reason_str}\n\n\
         > 🎉 **All systems go**: Pull requests and pushes are now allowed.\n\n\
         *The freeze has been successfully lifted.*"
     )
@@ -247,6 +248,14 @@ pub fn format_reason_display(reason: Option<String>) -> String {
     }
 }
 
+/// Helper function to format branch for display
+pub fn format_branch_display(branch: Option<String>) -> String {
+    match branch {
+        Some(b) if !b.trim().is_empty() => format!(" on branch **`{}`**", b.trim()),
+        _ => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,6 +267,7 @@ mod tests {
             "owner/repo",
             " for **2h 30m**",
             "\n\n**Reason**: _Deployment in progress_",
+            " on branch **`main`**",
         );
         assert!(msg.contains("Repository Frozen"));
         assert!(msg.contains("owner/repo"));
@@ -276,16 +286,22 @@ mod tests {
 
     #[test]
     fn test_unfreeze_success_message() {
-        let msg = unfreeze_success("owner/repo", "");
+        let msg = unfreeze_success("owner/repo", "", "");
         assert!(msg.contains("Repository Unfrozen"));
         assert!(msg.contains("owner/repo"));
         assert!(msg.contains("🌞"));
 
         // Test with reason
-        let msg_with_reason = unfreeze_success("owner/repo", "\n\n**Reason**: _Issue resolved_");
+        let msg_with_reason = unfreeze_success("owner/repo", "\n\n**Reason**: _Issue resolved_", "");
         assert!(msg_with_reason.contains("Repository Unfrozen"));
         assert!(msg_with_reason.contains("owner/repo"));
         assert!(msg_with_reason.contains("Issue resolved"));
+
+        // Test with branch
+        let msg_with_branch = unfreeze_success("owner/repo", "", " on branch **`main`**");
+        assert!(msg_with_branch.contains("Repository Unfrozen"));
+        assert!(msg_with_branch.contains("owner/repo"));
+        assert!(msg_with_branch.contains("main"));
     }
 
     #[test]
@@ -378,6 +394,7 @@ mod tests {
                 "owner/repo1".to_string(),
                 StatusEntry {
                     freeze_status: FreezeStatus::Active,
+                    branch: Some("main".to_string()),
                     duration: Some("2h".to_string()),
                     start: Some("2023-01-01 10:00:00 UTC".to_string()),
                     end: Some("2023-01-01 12:00:00 UTC".to_string()),
@@ -388,6 +405,7 @@ mod tests {
                 "owner/repo2".to_string(),
                 StatusEntry {
                     freeze_status: FreezeStatus::Off,
+                    branch: None,
                     duration: None,
                     start: None,
                     end: None,
@@ -403,6 +421,7 @@ mod tests {
         assert!(table.contains("🔒 Active"));
         assert!(table.contains("🌞 Off"));
         assert!(table.contains("maintenance"));
+        assert!(table.contains("main"));
         assert!(table.contains("| Repository | Status |"));
     }
 

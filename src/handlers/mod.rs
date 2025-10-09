@@ -123,6 +123,7 @@ pub async fn issue_comment_handler(
                         author,
                         issue_nr,
                         freeze_args.repos,
+                        freeze_args.branch,
                     )
                     .await;
                 }
@@ -134,6 +135,7 @@ pub async fn issue_comment_handler(
                         author,
                         issue_nr,
                         freeze_args.repos,
+                        freeze_args.branch,
                     )
                     .await;
                 }
@@ -144,6 +146,7 @@ pub async fn issue_comment_handler(
                         author,
                         unfreeze_args.reason,
                         issue_nr,
+                        unfreeze_args.branch,
                     )
                     .await;
                 }
@@ -166,6 +169,7 @@ pub async fn issue_comment_handler(
                             schedule_freeze_args.duration,
                             schedule_freeze_args.reason,
                             author.clone(),
+                            schedule_freeze_args.branch,
                         )
                         .await
                     {

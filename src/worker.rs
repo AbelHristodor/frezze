@@ -128,6 +128,7 @@ impl FreezeSchedulerWorker {
                 initiated_by: row.initiated_by,
                 ended_by: row.ended_by,
                 status: FreezeStatus::from(row.status.as_str()),
+                branch: row.branch,
                 created_at: parse_datetime(&row.created_at).unwrap_or_else(|_| Utc::now()),
             });
         }
