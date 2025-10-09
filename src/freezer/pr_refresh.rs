@@ -74,6 +74,7 @@ fn format_success_output() -> CheckRunOutput {
 pub struct PullRequestInfo {
     pub number: u64,
     pub head_sha: String,
+    pub base_ref: String,
 }
 
 /// Results of a PR refresh operation
@@ -148,9 +149,21 @@ impl PrRefreshService {
         );
 
         // Get all open PRs with their head SHAs
-        let prs = self
+        let mut prs = self
             .get_open_prs_with_sha(installation_id, owner, repo)
             .await?;
+
+        // Filter PRs by branch if freeze is branch-specific
+        if let Some(freeze) = freeze_record {
+            if let Some(ref freeze_branch) = freeze.branch {
+                let original_count = prs.len();
+                prs.retain(|pr| &pr.base_ref == freeze_branch);
+                info!(
+                    "Filtered PRs by branch '{}': {} -> {} PRs",
+                    freeze_branch, original_count, prs.len()
+                );
+            }
+        }
 
         if prs.is_empty() {
             info!("No open PRs found for repository {}/{}", owner, repo);
@@ -276,6 +289,7 @@ impl PrRefreshService {
                     .map(|pr| PullRequestInfo {
                         number: pr.number,
                         head_sha: pr.head.sha,
+                        base_ref: pr.base.ref_field,
                     })
                     .collect();
 
@@ -457,10 +471,27 @@ impl PrRefreshService {
             )
             .await?;
 
-        // Check freeze status and if PR is unlocked
+        let pr_base_ref = pr.base.ref_field.clone();
+
+        // Check freeze status - get active freeze for this repo
         let repo_name = repository.full_name();
-        let is_frozen =
-            FreezeRecord::is_frozen(self.db.pool(), installation_id, &repo_name).await?;
+        let conn = self.db.get_connection()
+            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
+        
+        let freeze_record = FreezeRecord::get_active_freeze(conn, installation_id, &repo_name).await?;
+        
+        // Check if this PR is affected by the freeze
+        let is_frozen = if let Some(ref freeze) = freeze_record {
+            // If freeze has a specific branch, check if it matches this PR's base branch
+            if let Some(ref freeze_branch) = freeze.branch {
+                freeze_branch == &pr_base_ref
+            } else {
+                // No branch specified, freeze applies to all branches
+                true
+            }
+        } else {
+            false
+        };
 
         let is_unlocked = if is_frozen {
             UnlockedPr::is_pr_unlocked(self.db.pool(), installation_id, &repo_name, pr_number)
@@ -472,6 +503,7 @@ impl PrRefreshService {
         let pr_info = PullRequestInfo {
             number: pr.number,
             head_sha: pr.head.sha,
+            base_ref: pr_base_ref,
         };
 
         // Determine check run conclusion based on freeze status
@@ -488,7 +520,7 @@ impl PrRefreshService {
             &repository.name,
             &pr_info,
             conclusion,
-            None,
+            freeze_record.as_ref(),
             RefreshConfig::default(),
         )
         .await?;
@@ -549,10 +581,12 @@ mod tests {
         let pr_info = PullRequestInfo {
             number: 42,
             head_sha: "abc123def456".to_string(),
+            base_ref: "main".to_string(),
         };
 
         assert_eq!(pr_info.number, 42);
         assert_eq!(pr_info.head_sha, "abc123def456");
+        assert_eq!(pr_info.base_ref, "main");
     }
 
     #[test]
