@@ -147,6 +147,11 @@ impl PrRefreshService {
     }
 
     /// Refresh check runs for all open PRs in a specific repository
+    /// 
+    /// This method updates ALL open PRs with appropriate check run status:
+    /// - If there's a branch-specific freeze, only PRs targeting that branch get failure status
+    /// - If there's a freeze without a specific branch, all PRs get failure status
+    /// - If there's no freeze, all PRs get success status
     pub async fn refresh_repository_prs(
         &self,
         installation_id: u64,
@@ -161,21 +166,9 @@ impl PrRefreshService {
         );
 
         // Get all open PRs with their head SHAs
-        let mut prs = self
+        let prs = self
             .get_open_prs_with_sha(installation_id, owner, repo)
             .await?;
-
-        // Filter PRs by branch if freeze is branch-specific
-        if let Some(freeze) = freeze_record {
-            if let Some(ref freeze_branch) = freeze.branch {
-                let original_count = prs.len();
-                prs.retain(|pr| &pr.base_ref == freeze_branch);
-                info!(
-                    "Filtered PRs by branch '{}': {} -> {} PRs",
-                    freeze_branch, original_count, prs.len()
-                );
-            }
-        }
 
         if prs.is_empty() {
             info!("No open PRs found for repository {}/{}", owner, repo);
@@ -189,20 +182,12 @@ impl PrRefreshService {
 
         info!("Found {} open PRs to update", prs.len());
 
-        // Determine check run conclusion based on freeze status
-        let conclusion = if is_frozen {
-            CheckRunConclusion::Failure
-        } else {
-            CheckRunConclusion::Success
-        };
-
-        // Update PRs in batches with rate limiting
+        // Update all PRs - each PR will be checked individually to determine if it's frozen
         self.update_prs_in_batches(
             installation_id,
             owner,
             repo,
             &prs,
-            conclusion,
             freeze_record,
         )
         .await
@@ -340,7 +325,6 @@ impl PrRefreshService {
         owner: &str,
         repo: &str,
         prs: &[PullRequestInfo],
-        conclusion: CheckRunConclusion,
         freeze_record: Option<&FreezeRecord>,
     ) -> Result<RefreshResult> {
         let mut successful_updates = 0;
@@ -360,6 +344,26 @@ impl PrRefreshService {
                 let freeze_record = freeze_record.cloned();
 
                 let handle = tokio::spawn(async move {
+                    // Determine if this specific PR is frozen
+                    let is_pr_frozen = if let Some(ref freeze) = freeze_record {
+                        if let Some(ref freeze_branch) = freeze.branch {
+                            // Branch-specific freeze: only freeze if PR targets that branch
+                            &pr.base_ref == freeze_branch
+                        } else {
+                            // No branch specified: freeze all PRs
+                            true
+                        }
+                    } else {
+                        // No freeze: all PRs are unfrozen
+                        false
+                    };
+
+                    let conclusion = if is_pr_frozen {
+                        CheckRunConclusion::Failure
+                    } else {
+                        CheckRunConclusion::Success
+                    };
+
                     Self::update_pr_with_retry(
                         github,
                         installation_id,
