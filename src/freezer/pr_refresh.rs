@@ -602,6 +602,7 @@ mod tests {
             initiated_by: "test-user".to_string(),
             ended_by: None,
             status: FreezeStatus::Active,
+            branch: None,
             created_at: Utc::now(),
         };
 
@@ -638,6 +639,7 @@ mod tests {
             initiated_by: "test-user".to_string(),
             ended_by: None,
             status: FreezeStatus::Active,
+            branch: None,
             created_at: Utc::now(),
         };
 

@@ -128,6 +128,9 @@ pub struct FreezeRecord {
     pub ended_by: Option<String>,
     /// Current status of the freeze
     pub status: FreezeStatus,
+    /// Optional branch name to restrict freeze to specific branch (e.g., "main")
+    /// NULL means the freeze applies to all branches
+    pub branch: Option<String>,
     /// When this record was created in the database
     pub created_at: DateTime<Utc>,
 }
@@ -143,6 +146,7 @@ impl FreezeRecord {
     /// * `expires_at` - Optional expiration time
     /// * `reason` - Optional reason for the freeze
     /// * `initiated_by` - GitHub username who initiated the freeze
+    /// * `branch` - Optional branch name to restrict freeze (e.g., "main")
     ///
     /// # Returns
     ///
@@ -154,6 +158,7 @@ impl FreezeRecord {
         expires_at: Option<DateTime<Utc>>,
         reason: Option<String>,
         initiated_by: String,
+        branch: Option<String>,
     ) -> FreezeRecord {
         FreezeRecord {
             id: uuid::Uuid::new_v4().to_string(),
@@ -166,6 +171,7 @@ impl FreezeRecord {
             initiated_by,
             ended_by: None,
             status: FreezeStatus::Active, // default to active
+            branch,
             created_at: Utc::now(),
         }
     }
@@ -182,6 +188,7 @@ impl FreezeRecord {
     /// * `expires_at` - Optional expiration time
     /// * `reason` - Optional reason for the freeze
     /// * `initiated_by` - GitHub username who initiated the freeze
+    /// * `branch` - Optional branch name to restrict freeze (e.g., "main")
     ///
     /// # Returns
     ///
@@ -193,6 +200,7 @@ impl FreezeRecord {
         expires_at: Option<DateTime<Utc>>,
         reason: Option<String>,
         initiated_by: String,
+        branch: Option<String>,
     ) -> FreezeRecord {
         FreezeRecord {
             id: uuid::Uuid::new_v4().to_string(),
@@ -205,6 +213,7 @@ impl FreezeRecord {
             initiated_by,
             ended_by: None,
             status: FreezeStatus::Scheduled,
+            branch,
             created_at: Utc::now(),
         }
     }
