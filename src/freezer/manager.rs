@@ -21,6 +21,7 @@ pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2)
 #[derive(Debug)]
 pub struct StatusEntry {
     pub freeze_status: FreezeStatus,
+    pub branch: Option<String>,
     pub duration: Option<String>,
     pub start: Option<String>,
     pub end: Option<String>,
@@ -39,6 +40,7 @@ impl StatusEntry {
     pub fn not_frozen() -> Self {
         StatusEntry {
             freeze_status: FreezeStatus::Off,
+            branch: None,
             duration: None,
             start: None,
             end: None,
@@ -67,6 +69,7 @@ impl StatusEntry {
             } else {
                 FreezeStatus::Scheduled
             },
+            branch: record.branch.clone(),
             duration,
             start,
             end,
@@ -77,6 +80,7 @@ impl StatusEntry {
     pub fn error(msg: &str) -> Self {
         StatusEntry {
             freeze_status: FreezeStatus::Error(msg.to_string()),
+            branch: None,
             duration: None,
             start: None,
             end: None,
@@ -165,8 +169,9 @@ impl FreezeManager {
                 };
 
                 let duration_str = messages::format_duration_display(duration);
-                let reason_str = messages::format_reason_display(r.reason);
-                messages::freeze_success(&repository.to_string(), &duration_str, &reason_str)
+                let reason_str = messages::format_reason_display(r.reason.clone());
+                let branch_str = messages::format_branch_display(r.branch);
+                messages::freeze_success(&repository.to_string(), &duration_str, &reason_str, &branch_str)
             }
             Err(e) => messages::freeze_error(&e.to_string()),
         };
@@ -654,13 +659,15 @@ impl FreezeManager {
         issue_nr: u64,
         branch: Option<String>,
     ) {
+        let branch_for_display = branch.clone();
         let outcome = match self
             .handle_unfreeze(installation_id, repository, ended_by, branch)
             .await
         {
             Ok(_) => {
                 let reason_str = messages::format_reason_display(reason);
-                messages::unfreeze_success(&repository.to_string(), &reason_str)
+                let branch_str = messages::format_branch_display(branch_for_display);
+                messages::unfreeze_success(&repository.to_string(), &reason_str, &branch_str)
             }
             Err(e) => {
                 tracing::error!("Failed to unfreeze repository: {:?}", e);

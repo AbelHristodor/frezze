@@ -57,6 +57,11 @@
         "name": "created_at",
         "ordinal": 10,
         "type_info": "Text"
+      },
+      {
+        "name": "branch",
+        "ordinal": 11,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -73,7 +78,8 @@
       false,
       true,
       false,
-      false
+      false,
+      true
     ]
   },
   "hash": "cda830d79b401caf12e9236402a5482648a88fffee8d261585376d5b5660d6e6"

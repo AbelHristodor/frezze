@@ -35,18 +35,30 @@ fn format_freeze_details(freeze_record: &FreezeRecord) -> CheckRunOutput {
         .as_deref()
         .unwrap_or("No reason provided");
     let author = &freeze_record.initiated_by;
+    let branch = freeze_record
+        .branch
+        .as_ref()
+        .map(|b| format!(" for branch '{}'", b))
+        .unwrap_or_else(|| " for all branches".to_string());
 
-    let title = format!("Repository is frozen by {}", author);
-    let summary = "This repository is currently under a freeze restriction".to_string();
+    let title = format!("Repository is frozen{} by {}", branch, author);
+    let summary = format!("This repository is currently under a freeze restriction{}", branch);
+
+    let branch_text = freeze_record
+        .branch
+        .as_ref()
+        .map(|b| format!("- **Branch**: {}\n", b))
+        .unwrap_or_else(|| "- **Branch**: All branches\n".to_string());
 
     let text = format!(
         "**Repository Freeze Details**\n\n\
+        {}\
         - **Author**: {}\n\
         - **Start**: {}\n\
         - **End**: {}\n\
         - **Reason**: {}\n\n\
         This PR cannot be merged while the repository is frozen. Please wait for the freeze to end or contact the freeze author.",
-        author, start_time, end_time, reason
+        branch_text, author, start_time, end_time, reason
     );
 
     CheckRunOutput {
@@ -642,16 +654,17 @@ mod tests {
 
         let output = format_freeze_details(&freeze_record);
 
-        assert_eq!(output.title, "Repository is frozen by test-user");
+        assert_eq!(output.title, "Repository is frozen for all branches by test-user");
         assert_eq!(
             output.summary,
-            "This repository is currently under a freeze restriction"
+            "This repository is currently under a freeze restriction for all branches"
         );
         assert!(output.text.is_some());
 
         let text = output.text.unwrap();
         assert!(text.contains("test-user"));
         assert!(text.contains("Emergency maintenance"));
+        assert!(text.contains("All branches"));
         assert!(text.contains("This PR cannot be merged while the repository is frozen"));
         assert_eq!(output.annotations.len(), 0);
         assert_eq!(output.images.len(), 0);
@@ -679,12 +692,13 @@ mod tests {
 
         let output = format_freeze_details(&freeze_record);
 
-        assert_eq!(output.title, "Repository is frozen by test-user");
+        assert_eq!(output.title, "Repository is frozen for all branches by test-user");
         assert!(output.text.is_some());
 
         let text = output.text.unwrap();
         assert!(text.contains("No reason provided"));
         assert!(text.contains("No end time set"));
+        assert!(text.contains("All branches"));
     }
 
     #[test]
