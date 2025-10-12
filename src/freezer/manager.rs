@@ -21,6 +21,7 @@ pub const DEFAULT_FREEZE_DURATION: chrono::Duration = chrono::Duration::hours(2)
 #[derive(Debug)]
 pub struct StatusEntry {
     pub freeze_status: FreezeStatus,
+    pub branch: Option<String>,
     pub duration: Option<String>,
     pub start: Option<String>,
     pub end: Option<String>,
@@ -39,6 +40,7 @@ impl StatusEntry {
     pub fn not_frozen() -> Self {
         StatusEntry {
             freeze_status: FreezeStatus::Off,
+            branch: None,
             duration: None,
             start: None,
             end: None,
@@ -67,6 +69,7 @@ impl StatusEntry {
             } else {
                 FreezeStatus::Scheduled
             },
+            branch: record.branch.clone(),
             duration,
             start,
             end,
@@ -77,6 +80,7 @@ impl StatusEntry {
     pub fn error(msg: &str) -> Self {
         StatusEntry {
             freeze_status: FreezeStatus::Error(msg.to_string()),
+            branch: None,
             duration: None,
             start: None,
             end: None,
@@ -135,6 +139,7 @@ impl FreezeManager {
         initiated_by: String,
         issue_nr: u64,
         repos: Vec<String>,
+        branch: Option<String>,
     ) {
         // If repos are specified, this is a multi-repo freeze command
         if !repos.is_empty() {
@@ -145,6 +150,7 @@ impl FreezeManager {
                 initiated_by,
                 issue_nr,
                 repos,
+                branch,
             )
             .await;
             return;
@@ -152,7 +158,7 @@ impl FreezeManager {
 
         // Otherwise, freeze the current repository
         let outcome = match self
-            .handle_freeze(installation_id, repository, duration, reason, initiated_by)
+            .handle_freeze(installation_id, repository, duration, reason, initiated_by, branch)
             .await
         {
             Ok(r) => {
@@ -163,8 +169,9 @@ impl FreezeManager {
                 };
 
                 let duration_str = messages::format_duration_display(duration);
-                let reason_str = messages::format_reason_display(r.reason);
-                messages::freeze_success(&repository.to_string(), &duration_str, &reason_str)
+                let reason_str = messages::format_reason_display(r.reason.clone());
+                let branch_str = messages::format_branch_display(r.branch);
+                messages::freeze_success(&repository.to_string(), &duration_str, &reason_str, &branch_str)
             }
             Err(e) => messages::freeze_error(&e.to_string()),
         };
@@ -180,6 +187,7 @@ impl FreezeManager {
         duration: Option<chrono::Duration>,
         reason: Option<String>,
         initiated_by: String,
+        branch: Option<String>,
     ) -> Result<FreezeRecord> {
         // Create the record
         let start = Utc::now();
@@ -194,6 +202,7 @@ impl FreezeManager {
             Some(start + duration),
             reason,
             initiated_by,
+            branch,
         );
 
         let conn = self
@@ -250,6 +259,7 @@ impl FreezeManager {
         initiated_by: String,
         issue_nr: u64,
         repos: Vec<String>,
+        branch: Option<String>,
     ) {
         // If specific repos are provided, filter to those repos only
         if !repos.is_empty() {
@@ -260,6 +270,7 @@ impl FreezeManager {
                 initiated_by,
                 issue_nr,
                 repos,
+                branch,
             )
             .await;
             return;
@@ -300,6 +311,7 @@ impl FreezeManager {
                     duration,
                     reason.clone(),
                     initiated_by.clone(),
+                    branch.clone(),
                 )
                 .await
             {
@@ -343,6 +355,7 @@ impl FreezeManager {
         initiated_by: String,
         issue_nr: u64,
         repo_names: Vec<String>,
+        branch: Option<String>,
     ) {
         let mut successful_freezes = 0;
         let mut failed_freezes = 0;
@@ -384,6 +397,7 @@ impl FreezeManager {
                     duration,
                     reason.clone(),
                     initiated_by.clone(),
+                    branch.clone(),
                 )
                 .await
             {
@@ -443,7 +457,7 @@ impl FreezeManager {
             let repository = Repository::new(&repo.owner.as_ref().unwrap().login, &repo.name);
 
             match self
-                .handle_unfreeze(installation_id, &repository, ended_by.clone())
+                .handle_unfreeze(installation_id, &repository, ended_by.clone(), None)
                 .await
             {
                 Ok(_) => {
@@ -609,6 +623,7 @@ impl FreezeManager {
         duration: Option<chrono::Duration>,
         reason: Option<String>,
         initiated_by: String,
+        branch: Option<String>,
     ) -> Result<()> {
         let end_time = match (end, duration) {
             (Some(end), _) => end,
@@ -623,6 +638,7 @@ impl FreezeManager {
             Some(end_time),
             reason,
             initiated_by,
+            branch,
         );
 
         let conn = self
@@ -641,14 +657,17 @@ impl FreezeManager {
         ended_by: String,
         reason: Option<String>,
         issue_nr: u64,
+        branch: Option<String>,
     ) {
+        let branch_for_display = branch.clone();
         let outcome = match self
-            .handle_unfreeze(installation_id, repository, ended_by)
+            .handle_unfreeze(installation_id, repository, ended_by, branch)
             .await
         {
             Ok(_) => {
                 let reason_str = messages::format_reason_display(reason);
-                messages::unfreeze_success(&repository.to_string(), &reason_str)
+                let branch_str = messages::format_branch_display(branch_for_display);
+                messages::unfreeze_success(&repository.to_string(), &reason_str, &branch_str)
             }
             Err(e) => {
                 tracing::error!("Failed to unfreeze repository: {:?}", e);
@@ -666,6 +685,7 @@ impl FreezeManager {
         installation_id: u64,
         repository: &Repository,
         ended_by: String,
+        branch: Option<String>,
     ) -> Result<()> {
         let conn = self
             .db
@@ -674,16 +694,22 @@ impl FreezeManager {
 
         let repo = repository.full_name();
         // Get active freeze records for this repository
-        let freeze_records =
+        let mut freeze_records =
             FreezeRecord::list(conn, Some(installation_id), Some(&repo), Some(true))
                 .await
                 .map_err(|e| anyhow!("Failed to get freeze records for repo {}: {}", repo, e))?;
 
-        if freeze_records.is_empty() {
-            return Err(anyhow!("No active freeze found for repository: {}", repo));
+        // Filter by branch if specified
+        if let Some(ref target_branch) = branch {
+            freeze_records.retain(|r| r.branch.as_ref() == Some(target_branch));
         }
 
-        // End all active freezes for this repository
+        if freeze_records.is_empty() {
+            let branch_msg = branch.map_or(String::new(), |b| format!(" for branch '{}'", b));
+            return Err(anyhow!("No active freeze found for repository: {}{}", repo, branch_msg));
+        }
+
+        // End all matching active freezes for this repository
         for record in freeze_records {
             let record_id = record.id.clone();
             FreezeRecord::update_status(

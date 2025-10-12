@@ -35,18 +35,30 @@ fn format_freeze_details(freeze_record: &FreezeRecord) -> CheckRunOutput {
         .as_deref()
         .unwrap_or("No reason provided");
     let author = &freeze_record.initiated_by;
+    let branch = freeze_record
+        .branch
+        .as_ref()
+        .map(|b| format!(" for branch '{}'", b))
+        .unwrap_or_else(|| " for all branches".to_string());
 
-    let title = format!("Repository is frozen by {}", author);
-    let summary = "This repository is currently under a freeze restriction".to_string();
+    let title = format!("Repository is frozen{} by {}", branch, author);
+    let summary = format!("This repository is currently under a freeze restriction{}", branch);
+
+    let branch_text = freeze_record
+        .branch
+        .as_ref()
+        .map(|b| format!("- **Branch**: {}\n", b))
+        .unwrap_or_else(|| "- **Branch**: All branches\n".to_string());
 
     let text = format!(
         "**Repository Freeze Details**\n\n\
+        {}\
         - **Author**: {}\n\
         - **Start**: {}\n\
         - **End**: {}\n\
         - **Reason**: {}\n\n\
         This PR cannot be merged while the repository is frozen. Please wait for the freeze to end or contact the freeze author.",
-        author, start_time, end_time, reason
+        branch_text, author, start_time, end_time, reason
     );
 
     CheckRunOutput {
@@ -74,6 +86,7 @@ fn format_success_output() -> CheckRunOutput {
 pub struct PullRequestInfo {
     pub number: u64,
     pub head_sha: String,
+    pub base_ref: String,
 }
 
 /// Results of a PR refresh operation
@@ -134,6 +147,11 @@ impl PrRefreshService {
     }
 
     /// Refresh check runs for all open PRs in a specific repository
+    /// 
+    /// This method updates ALL open PRs with appropriate check run status:
+    /// - If there's a branch-specific freeze, only PRs targeting that branch get failure status
+    /// - If there's a freeze without a specific branch, all PRs get failure status
+    /// - If there's no freeze, all PRs get success status
     pub async fn refresh_repository_prs(
         &self,
         installation_id: u64,
@@ -164,20 +182,12 @@ impl PrRefreshService {
 
         info!("Found {} open PRs to update", prs.len());
 
-        // Determine check run conclusion based on freeze status
-        let conclusion = if is_frozen {
-            CheckRunConclusion::Failure
-        } else {
-            CheckRunConclusion::Success
-        };
-
-        // Update PRs in batches with rate limiting
+        // Update all PRs - each PR will be checked individually to determine if it's frozen
         self.update_prs_in_batches(
             installation_id,
             owner,
             repo,
             &prs,
-            conclusion,
             freeze_record,
         )
         .await
@@ -276,6 +286,7 @@ impl PrRefreshService {
                     .map(|pr| PullRequestInfo {
                         number: pr.number,
                         head_sha: pr.head.sha,
+                        base_ref: pr.base.ref_field,
                     })
                     .collect();
 
@@ -314,7 +325,6 @@ impl PrRefreshService {
         owner: &str,
         repo: &str,
         prs: &[PullRequestInfo],
-        conclusion: CheckRunConclusion,
         freeze_record: Option<&FreezeRecord>,
     ) -> Result<RefreshResult> {
         let mut successful_updates = 0;
@@ -334,6 +344,26 @@ impl PrRefreshService {
                 let freeze_record = freeze_record.cloned();
 
                 let handle = tokio::spawn(async move {
+                    // Determine if this specific PR is frozen
+                    let is_pr_frozen = if let Some(ref freeze) = freeze_record {
+                        if let Some(ref freeze_branch) = freeze.branch {
+                            // Branch-specific freeze: only freeze if PR targets that branch
+                            &pr.base_ref == freeze_branch
+                        } else {
+                            // No branch specified: freeze all PRs
+                            true
+                        }
+                    } else {
+                        // No freeze: all PRs are unfrozen
+                        false
+                    };
+
+                    let conclusion = if is_pr_frozen {
+                        CheckRunConclusion::Failure
+                    } else {
+                        CheckRunConclusion::Success
+                    };
+
                     Self::update_pr_with_retry(
                         github,
                         installation_id,
@@ -457,10 +487,27 @@ impl PrRefreshService {
             )
             .await?;
 
-        // Check freeze status and if PR is unlocked
+        let pr_base_ref = pr.base.ref_field.clone();
+
+        // Check freeze status - get active freeze for this repo
         let repo_name = repository.full_name();
-        let is_frozen =
-            FreezeRecord::is_frozen(self.db.pool(), installation_id, &repo_name).await?;
+        let conn = self.db.get_connection()
+            .map_err(|e| anyhow!("Failed to get database connection: {}", e))?;
+        
+        let freeze_record = FreezeRecord::get_active_freeze(conn, installation_id, &repo_name).await?;
+        
+        // Check if this PR is affected by the freeze
+        let is_frozen = if let Some(ref freeze) = freeze_record {
+            // If freeze has a specific branch, check if it matches this PR's base branch
+            if let Some(ref freeze_branch) = freeze.branch {
+                freeze_branch == &pr_base_ref
+            } else {
+                // No branch specified, freeze applies to all branches
+                true
+            }
+        } else {
+            false
+        };
 
         let is_unlocked = if is_frozen {
             UnlockedPr::is_pr_unlocked(self.db.pool(), installation_id, &repo_name, pr_number)
@@ -472,6 +519,7 @@ impl PrRefreshService {
         let pr_info = PullRequestInfo {
             number: pr.number,
             head_sha: pr.head.sha,
+            base_ref: pr_base_ref,
         };
 
         // Determine check run conclusion based on freeze status
@@ -488,7 +536,7 @@ impl PrRefreshService {
             &repository.name,
             &pr_info,
             conclusion,
-            None,
+            freeze_record.as_ref(),
             RefreshConfig::default(),
         )
         .await?;
@@ -549,10 +597,12 @@ mod tests {
         let pr_info = PullRequestInfo {
             number: 42,
             head_sha: "abc123def456".to_string(),
+            base_ref: "main".to_string(),
         };
 
         assert_eq!(pr_info.number, 42);
         assert_eq!(pr_info.head_sha, "abc123def456");
+        assert_eq!(pr_info.base_ref, "main");
     }
 
     #[test]
@@ -602,21 +652,23 @@ mod tests {
             initiated_by: "test-user".to_string(),
             ended_by: None,
             status: FreezeStatus::Active,
+            branch: None,
             created_at: Utc::now(),
         };
 
         let output = format_freeze_details(&freeze_record);
 
-        assert_eq!(output.title, "Repository is frozen by test-user");
+        assert_eq!(output.title, "Repository is frozen for all branches by test-user");
         assert_eq!(
             output.summary,
-            "This repository is currently under a freeze restriction"
+            "This repository is currently under a freeze restriction for all branches"
         );
         assert!(output.text.is_some());
 
         let text = output.text.unwrap();
         assert!(text.contains("test-user"));
         assert!(text.contains("Emergency maintenance"));
+        assert!(text.contains("All branches"));
         assert!(text.contains("This PR cannot be merged while the repository is frozen"));
         assert_eq!(output.annotations.len(), 0);
         assert_eq!(output.images.len(), 0);
@@ -638,17 +690,19 @@ mod tests {
             initiated_by: "test-user".to_string(),
             ended_by: None,
             status: FreezeStatus::Active,
+            branch: None,
             created_at: Utc::now(),
         };
 
         let output = format_freeze_details(&freeze_record);
 
-        assert_eq!(output.title, "Repository is frozen by test-user");
+        assert_eq!(output.title, "Repository is frozen for all branches by test-user");
         assert!(output.text.is_some());
 
         let text = output.text.unwrap();
         assert!(text.contains("No reason provided"));
         assert!(text.contains("No end time set"));
+        assert!(text.contains("All branches"));
     }
 
     #[test]
