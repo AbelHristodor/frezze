@@ -36,28 +36,28 @@ All commands are used in GitHub issue or PR comments:
 
 ### Basic Commands
 
-- `/freeze` - Freeze current repository
-- `/freeze --repo owner/repo1,owner/repo2` - Freeze specific repositories
-- `/freeze-all` - Freeze all repositories in organization
-- `/freeze-all --repo owner/repo1,owner/repo2` - Freeze specific repositories
-- `/unfreeze` - Unfreeze current repository  
-- `/unfreeze-all` - Unfreeze all repositories in organization
-- `/status` - Show current freeze status
-- `/unlock-pr` - Unlock a specific PR during a freeze
+- `@frezze freeze` - Freeze current repository
+- `@frezze freeze --repo owner/repo1,owner/repo2` - Freeze specific repositories
+- `@frezze freeze-all` - Freeze all repositories in organization
+- `@frezze freeze-all --repo owner/repo1,owner/repo2` - Freeze specific repositories
+- `@frezze unfreeze` - Unfreeze current repository  
+- `@frezze unfreeze-all` - Unfreeze all repositories in organization
+- `@frezze status` - Show current freeze status
+- `@frezze unlock-pr` - Unlock a specific PR during a freeze
 
 ### Advanced Options
 
-- `/freeze --duration 2h` - Freeze for 2 hours
-- `/freeze --reason "Release v1.2.3"` - Freeze with reason
-- `/freeze --duration 1d --reason "Emergency maintenance"` - Combined options
-- `/freeze --repo owner/repo1,owner/repo2 --duration 2h` - Freeze specific repos for 2 hours
-- `/freeze --repo owner/repo1 --repo owner/repo2` - Freeze multiple repos using separate flags
-- `/freeze-all --repo owner/repo1,owner/repo2` - Freeze only specific repos instead of all
-- `/schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h` - Schedule freeze
-- `/status --repos repo1,repo2` - Check status for specific repositories
-- `/unlock-pr --pr-number 123` - Unlock specific PR by number
-- `/unlock-pr --reason "emergency"` - Unlock current PR with reason
-- `/unfreeze --reason "Issue resolved"` - Unfreeze with reason
+- `@frezze freeze --duration 2h` - Freeze for 2 hours
+- `@frezze freeze --reason "Release v1.2.3"` - Freeze with reason
+- `@frezze freeze --duration 1d --reason "Emergency maintenance"` - Combined options
+- `@frezze freeze --repo owner/repo1,owner/repo2 --duration 2h` - Freeze specific repos for 2 hours
+- `@frezze freeze --repo owner/repo1 --repo owner/repo2` - Freeze multiple repos using separate flags
+- `@frezze freeze-all --repo owner/repo1,owner/repo2` - Freeze only specific repos instead of all
+- `@frezze schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h` - Schedule freeze
+- `@frezze status --repos repo1,repo2` - Check status for specific repositories
+- `@frezze unlock-pr --pr-number 123` - Unlock specific PR by number
+- `@frezze unlock-pr --reason "emergency"` - Unlock current PR with reason
+- `@frezze unfreeze --reason "Issue resolved"` - Unfreeze with reason
 
 ### Branch-based Freezes
 
@@ -85,13 +85,13 @@ Branch-based freezes allow you to freeze only PRs targeting a specific branch (e
 
 ### PR Unlock Command
 
-The `/unlock-pr` command allows you to temporarily unlock specific pull requests during a repository freeze, enabling them to be merged despite the freeze restrictions.
+The `@frezze unlock-pr` command allows you to temporarily unlock specific pull requests during a repository freeze, enabling them to be merged despite the freeze restrictions.
 
 **Usage Examples:**
 
-- `/unlock-pr` - Unlock the current PR (when used in a PR comment)
-- `/unlock-pr --pr-number 123` - Unlock PR #123 (can be used from any issue/PR)
-- `/unlock-pr --pr-number 123 --reason "Critical security fix"` - Unlock with reason
+- `@frezze unlock-pr` - Unlock the current PR (when used in a PR comment)
+- `@frezze unlock-pr --pr-number 123` - Unlock PR #123 (can be used from any issue/PR)
+- `@frezze unlock-pr --pr-number 123 --reason "Critical security fix"` - Unlock with reason
 
 **Important Notes:**
 
@@ -99,82 +99,6 @@ The `/unlock-pr` command allows you to temporarily unlock specific pull requests
 - Requires appropriate permissions (maintainer or admin role)
 - The unlock remains active until the next freeze starts
 - PRs are automatically refreshed with updated check run status
-
-## Usage Examples
-
-### Common Scenarios
-
-**Emergency freeze during incident:**
-
-```
-/freeze --duration 2h --reason "Production incident - investigating database issues"
-```
-
-**Scheduled maintenance window:**
-
-```
-/schedule-freeze --from "2024-12-01T02:00:00Z" --duration 4h --reason "Database maintenance"
-```
-
-**Organization-wide code freeze:**
-
-```
-/freeze-all --duration 1d --reason "End-of-quarter freeze before major release"
-```
-
-**Freeze main branch only (allow development in feature branches):**
-
-```
-/freeze --branch main --duration 2h --reason "Production deployment in progress"
-```
-
-**Organization-wide freeze of main branches:**
-
-```
-/freeze-all --branch main --duration 4h --reason "Critical security patch deployment"
-```
-
-**Freeze specific repositories:**
-
-```
-/freeze --repo owner/frontend,owner/backend --duration 3h --reason "Deployment in progress"
-```
-
-or using multiple --repo flags:
-
-```
-/freeze-all --repo owner/repo1 --repo owner/repo2 --duration 2h
-```
-
-**Quick status check:**
-
-```
-/status --repos frontend,backend,api
-```
-
-**Emergency PR during freeze:**
-
-```
-/unlock-pr --pr-number 456 --reason "Critical hotfix for production issue"
-```
-
-**Manual unfreeze:**
-
-```
-/unfreeze --reason "Issue resolved"
-```
-
-## PR Refresh System
-
-The PR refresh system ensures that all open pull requests have up-to-date check runs that reflect the current freeze status. This is essential for scheduled freezes and maintaining consistency.
-
-### How It Works
-
-1. **Scheduled Check** - The system queries for active freeze records that should be enforced
-2. **PR Discovery** - For each repository with active freezes, it fetches all open pull requests
-3. **Status Evaluation** - Determines if the freeze is currently active based on start/end times
-4. **Check Run Update** - Creates GitHub check runs with success/failure status based on freeze state
-5. **Error Handling** - Logs errors for individual PRs without stopping the entire process
 
 ## Quick Start
 
