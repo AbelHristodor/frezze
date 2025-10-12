@@ -65,18 +65,18 @@ Branch-based freezes allow you to freeze only PRs targeting a specific branch (e
 
 **Usage Examples:**
 
-- `/freeze --branch main` - Freeze only PRs merging into the main branch
-- `/freeze --branch main --duration 2h --reason "Production deployment"` - Freeze main branch for 2 hours
-- `/freeze-all --branch main` - Freeze main branch across all repositories
-- `/unfreeze --branch main` - Unfreeze only the main branch
-- `/schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h --branch main` - Schedule branch-specific freeze
+- `@frezze freeze --branch main` - Freeze only PRs merging into the main branch
+- `@frezze freeze --branch main --duration 2h --reason "Production deployment"` - Freeze main branch for 2 hours
+- `@frezze freeze-all --branch main` - Freeze main branch across all repositories
+- `@frezze unfreeze --branch main` - Unfreeze only the main branch
+- `@frezze schedule-freeze --from "2024-01-15T10:00:00Z" --duration 2h --branch main` - Schedule branch-specific freeze
 
 **Important Notes:**
 
 - When `--branch` is not specified, the freeze applies to all branches (default behavior)
 - A repository can have multiple active freezes for different branches simultaneously
 - Each branch freeze is tracked independently and can be unfrozen separately
-- Branch-based freezes work with all freeze commands (`/freeze`, `/freeze-all`, `/schedule-freeze`)
+- Branch-based freezes work with all freeze commands (`freeze`, `freeze-all`, `schedule-freeze`)
 
 ### Duration Formats
 
