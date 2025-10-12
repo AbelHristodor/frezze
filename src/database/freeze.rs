@@ -99,8 +99,8 @@ impl FreezeRecord {
         sqlx::query!(
             r#"
             INSERT INTO freeze_records 
-            (id, repository, installation_id, started_at, expires_at, ended_at, reason, initiated_by, ended_by, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            (id, repository, installation_id, started_at, expires_at, ended_at, reason, initiated_by, ended_by, status, branch, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             "#,
             record.id,
             record.repository,
@@ -112,6 +112,7 @@ impl FreezeRecord {
             record.initiated_by,
             record.ended_by,
             status_str,
+            record.branch,
             record.created_at
         )
         .execute(pool)
@@ -199,6 +200,7 @@ impl FreezeRecord {
                 initiated_by: row.get("initiated_by"),
                 ended_by: row.get("ended_by"),
                 status: FreezeStatus::from(row.get::<String, _>("status").as_str()),
+                branch: row.get("branch"),
                 created_at: row.get("created_at"),
             });
         }
@@ -289,6 +291,7 @@ impl FreezeRecord {
                     initiated_by: row.initiated_by,
                     ended_by: row.ended_by,
                     status: FreezeStatus::from(row.status.as_str()),
+                    branch: row.branch,
                     created_at: parse_datetime(&row.created_at)?,
                 })),
                 None => Ok(None),
@@ -342,6 +345,7 @@ impl FreezeRecord {
                 initiated_by: row.initiated_by,
                 ended_by: row.ended_by,
                 status: FreezeStatus::from(row.status.as_str()),
+                branch: row.branch,
                 created_at: parse_datetime(&row.created_at).unwrap_or_else(|_| Utc::now()),
             });
         }
@@ -396,6 +400,7 @@ impl FreezeRecord {
                 initiated_by: row.initiated_by,
                 ended_by: row.ended_by,
                 status: FreezeStatus::from(row.status.as_str()),
+                branch: row.branch,
                 created_at: parse_datetime(&row.created_at).unwrap_or_else(|_| Utc::now()),
             })),
             None => Ok(None),
