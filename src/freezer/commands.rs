@@ -60,14 +60,12 @@ use tracing::error;
 
 use crate::freezer::errors::ParsingError;
 
-const COMMAND_PREFIX: &str = "@frezze";
-
 pub fn parse(input: &str) -> Result<Cli, ParsingError> {
-    if input.is_empty() || !input.starts_with(COMMAND_PREFIX) {
+    if input.is_empty() || !input.starts_with("/") {
         return Err(ParsingError::NotACommand);
     }
 
-    let input = input.trim_start_matches(COMMAND_PREFIX);
+    let input = input.trim_start_matches("/");
 
     let args = shell_words::split(input).map_err(|e| {
         error!("MalformedCommand: {:?}", e);
